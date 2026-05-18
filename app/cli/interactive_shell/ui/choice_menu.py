@@ -47,6 +47,13 @@ def ensure_tty_column_zero() -> None:
         reset_tty_column()
 
 
+def prepare_repl_output_line() -> None:
+    """Begin Rich output on a new line after inline menu I/O."""
+    if repl_tty_interactive():
+        sys.stdout.write(_TERMINAL_NEWLINE)
+        reset_tty_column()
+
+
 def repl_section_break(console: Console) -> None:
     """Blank line + dim rule between an inline menu step and Rich output."""
     ensure_tty_column_zero()
@@ -324,6 +331,7 @@ __all__ = [
     "read_menu_action",
     "repl_choose_one",
     "ensure_tty_column_zero",
+    "prepare_repl_output_line",
     "repl_section_break",
     "repl_tty_interactive",
     "reset_tty_column",

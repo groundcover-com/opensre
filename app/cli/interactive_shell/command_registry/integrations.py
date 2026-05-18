@@ -31,25 +31,65 @@ from app.cli.interactive_shell.ui.choice_menu import (
     repl_section_break,
     repl_tty_interactive,
 )
-from app.cli.interactive_shell.ui.rendering import print_repl_table, repl_print
+from app.cli.interactive_shell.ui.rendering import (
+    _repl_table_width,
+    print_repl_table,
+    repl_print,
+)
 
 _ROOT_LIST = "/list"
 _ROOT_INTEGRATIONS = "/integrations"
 _ROOT_MCP = "/mcp"
 
 
-def _verified_service_choices() -> list[tuple[str, str]]:
-    rows = repl_data.load_verified_integrations()
-    names = sorted({str(r.get("service", "")) for r in rows if r.get("service")})
-    return [(n, n) for n in names]
+def _configured_service_choices() -> list[tuple[str, str]]:
+    """Build picker choices from configured integrations (no live verification)."""
+    return [(name, name) for name in repl_data.configured_integration_names()]
 
 
 def _mcp_service_choices() -> list[tuple[str, str]]:
-    rows = repl_data.load_verified_integrations()
-    names = sorted(
-        {str(r.get("service", "")) for r in rows if r.get("service") in MCP_INTEGRATION_SERVICES}
+    names = [
+        name
+        for name in repl_data.configured_integration_names()
+        if name in MCP_INTEGRATION_SERVICES
+    ]
+    return [(name, name) for name in names]
+
+
+def _render_integration_show(console: Console, service: str) -> bool:
+    """Verify and print one integration. Returns False when the service is unknown."""
+    from app.cli.interactive_shell.ui.choice_menu import prepare_repl_output_line
+
+    normalized = service.strip().lower()
+    configured = set(repl_data.configured_integration_names())
+    if normalized not in configured:
+        repl_print(console, f"[{ERROR}]service not found:[/] {escape(normalized)}")
+        return False
+
+    prepare_repl_output_line()
+    with console.status(
+        f"[{DIM}]Verifying {escape(normalized)}…[/]",
+        spinner="dots",
+    ):
+        match = repl_data.verify_integration(normalized)
+    if match is None:
+        repl_print(console, f"[{ERROR}]service not found:[/] {escape(normalized)}")
+        return False
+
+    width = _repl_table_width(console)
+    table = repl_table(
+        title=f"Integration: {normalized}",
+        title_style=BOLD_BRAND,
+        show_header=False,
+        width=width,
     )
-    return [(n, n) for n in names if n]
+    table.add_column("key", style="bold", no_wrap=True)
+    value_width = max(20, width - 20)
+    table.add_column("value", overflow="fold", max_width=value_width)
+    for key, value in match.items():
+        table.add_row(escape(key), escape(str(value)))
+    print_repl_table(console, table)
+    return True
 
 
 def _interactive_list_menu(_session: ReplSession, console: Console) -> bool:
@@ -97,11 +137,14 @@ def _cmd_integrations(session: ReplSession, console: Console, args: list[str]) -
     sub = (args[0].lower() if args else "list").strip()
 
     if sub in ("list", "ls"):
-        render_integrations_table(console, repl_data.load_verified_integrations())
+        with console.status(f"[{DIM}]Verifying integrations…[/]", spinner="dots"):
+            results = repl_data.load_verified_integrations()
+        render_integrations_table(console, results)
         return True
 
     if sub == "verify":
-        results = repl_data.load_verified_integrations()
+        with console.status(f"[{DIM}]Verifying integrations…[/]", spinner="dots"):
+            results = repl_data.load_verified_integrations()
         render_integrations_table(console, results)
         failed = [r for r in results if r.get("status") in ("failed", "missing")]
         if failed:
@@ -121,23 +164,8 @@ def _cmd_integrations(session: ReplSession, console: Console, args: list[str]) -
             repl_print(console, f"[{DIM}]usage:[/] /integrations show <service>")
             session.mark_latest(ok=False, kind="slash")
             return True
-        service = args[1].lower()
-        results = repl_data.load_verified_integrations()
-        match = next((r for r in results if r.get("service") == service), None)
-        if match is None:
-            repl_print(console, f"[{ERROR}]service not found:[/] {escape(service)}")
+        if not _render_integration_show(console, args[1]):
             session.mark_latest(ok=False, kind="slash")
-            return True
-        table = repl_table(
-            title=f"Integration: {service}",
-            title_style=BOLD_BRAND,
-            show_header=False,
-        )
-        table.add_column("key", style="bold", no_wrap=True)
-        table.add_column("value", overflow="fold")
-        for k, v in match.items():
-            table.add_row(escape(k), escape(str(v)))
-        print_repl_table(console, table)
         return True
 
     repl_print(
@@ -178,7 +206,7 @@ def _interactive_integrations_menu(session: ReplSession, console: Console) -> bo
             _cmd_integrations(session, console, ["setup"])
             show_section_break = True
         elif sub == "show":
-            choices = _verified_service_choices()
+            choices = _configured_service_choices()
             if not choices:
                 repl_print(console, "[dim]no integrations in store to show.[/dim]")
                 show_section_break = True
@@ -188,11 +216,10 @@ def _interactive_integrations_menu(session: ReplSession, console: Console) -> bo
                     breadcrumb=f"{root}{CRUMB_SEP}show",
                     choices=choices,
                 )
-                if svc:
-                    _cmd_integrations(session, console, ["show", svc])
+                if svc and _render_integration_show(console, svc):
                     show_section_break = True
         elif sub == "remove":
-            choices = _verified_service_choices()
+            choices = _configured_service_choices()
             if not choices:
                 repl_print(console, "[dim]no integrations in store to remove.[/dim]")
                 show_section_break = True

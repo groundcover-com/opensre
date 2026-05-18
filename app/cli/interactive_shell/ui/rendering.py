@@ -60,9 +60,9 @@ def _repl_table_width(console: Console) -> int:
 
 def _prepare_tty_for_rich(console: Console) -> int:
     """Reset cursor column and return the width Rich should render at."""
-    from app.cli.interactive_shell.ui.choice_menu import ensure_tty_column_zero
+    from app.cli.interactive_shell.ui.choice_menu import prepare_repl_output_line
 
-    ensure_tty_column_zero()
+    prepare_repl_output_line()
     return _repl_table_width(console)
 
 
@@ -76,9 +76,9 @@ def print_repl_table(console: Console, table: Table) -> None:
 
 def repl_print(console: Console, *objects: Any, **kwargs: Any) -> None:
     """Print via Rich after resetting the TTY column (inline-menu safe)."""
-    from app.cli.interactive_shell.ui.choice_menu import ensure_tty_column_zero
+    from app.cli.interactive_shell.ui.choice_menu import prepare_repl_output_line
 
-    ensure_tty_column_zero()
+    prepare_repl_output_line()
     if sys.stdout.isatty() and "width" not in kwargs:
         kwargs.setdefault("width", _repl_table_width(console))
     console.print(*objects, **kwargs)
@@ -180,6 +180,7 @@ def print_planned_actions(console: Console, actions: list[PlannedAction]) -> Non
 
 __all__ = [
     "MCP_INTEGRATION_SERVICES",
+    "_repl_table_width",
     "print_command_output",
     "print_planned_actions",
     "print_repl_table",
