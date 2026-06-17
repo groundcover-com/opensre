@@ -218,6 +218,51 @@ def _format_tool_calls_line(
             ),
             lambda _: f"https://app.{datadog_site}/event/explorer",
         ),
+        "query_groundcover_logs": (
+            "groundcover Logs",
+            lambda _: None,
+            lambda _: "https://app.groundcover.com/logs",
+        ),
+        "query_groundcover_traces": (
+            "groundcover Traces",
+            lambda _: None,
+            lambda _: "https://app.groundcover.com/traces",
+        ),
+        "query_groundcover_metrics": (
+            "groundcover Metrics",
+            lambda _: None,
+            lambda _: "https://app.groundcover.com/metrics",
+        ),
+        "query_groundcover_apm": (
+            "groundcover APM",
+            lambda _: None,
+            lambda _: "https://app.groundcover.com/apm",
+        ),
+        "query_groundcover_events": (
+            "groundcover K8s Events",
+            lambda _: None,
+            lambda _: "https://app.groundcover.com/events",
+        ),
+        "query_groundcover_entities": (
+            "groundcover Entities",
+            lambda _: None,
+            None,
+        ),
+        "query_groundcover_monitors": (
+            "groundcover Monitors",
+            lambda _: None,
+            lambda _: "https://app.groundcover.com/monitors",
+        ),
+        "query_groundcover_issues": (
+            "groundcover Monitor Issues",
+            lambda _: None,
+            lambda _: "https://app.groundcover.com/monitors",
+        ),
+        "get_groundcover_query_reference": (
+            "groundcover gcQL reference",
+            lambda _: None,
+            None,
+        ),
         "query_betterstack_logs": (
             "Better Stack Logs",
             lambda e: (

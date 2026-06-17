@@ -107,6 +107,7 @@ def _context_budget_ceiling_for_model(model: str | None) -> int:
 _ALERT_SOURCE_TO_TOOL_SOURCES: dict[str, list[str]] = {
     "grafana": ["grafana"],
     "datadog": ["datadog"],
+    "groundcover": ["groundcover"],
     "cloudwatch": ["cloudwatch"],
     "eks": ["eks"],
     "alertmanager": ["grafana", "cloudwatch"],
