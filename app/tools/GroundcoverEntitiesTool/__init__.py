@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from app.services.groundcover import GroundcoverClient
 from app.tools.tool_decorator import tool
 from app.tools.utils.availability import groundcover_available_or_backend
 from app.tools.utils.groundcover import (
+    DEFAULT_ENTITIES_QUERY,
     GCQL_GUIDANCE,
+    base_extract_params,
     build_envelope,
-    groundcover_creds,
-    make_client,
     needs_query,
     unavailable,
 )
@@ -23,8 +24,9 @@ def _is_available(sources: dict[str, dict]) -> bool:
 
 
 def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
-    gc = sources["groundcover"]
-    return {"groundcover_backend": gc.get("_backend"), **groundcover_creds(gc)}
+    return base_extract_params(
+        sources["groundcover"], default_query=DEFAULT_ENTITIES_QUERY, include_period=False
+    )
 
 
 @tool(
@@ -59,17 +61,14 @@ def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
             },
         },
         "required": ["query"],
+        "additionalProperties": False,
     },
     is_available=_is_available,
     extract_params=_extract_params,
 )
 def query_groundcover_entities(
     query: str = "",
-    api_key: str | None = None,
-    mcp_url: str = "",
-    tenant_uuid: str = "",
-    backend_id: str = "",
-    timezone: str = "UTC",
+    _groundcover_client: GroundcoverClient | None = None,
     groundcover_backend: Any = None,
     **_kwargs: Any,
 ) -> dict[str, Any]:
@@ -77,19 +76,10 @@ def query_groundcover_entities(
     if groundcover_backend is not None and hasattr(groundcover_backend, "query_entities"):
         return cast("dict[str, Any]", groundcover_backend.query_entities(query=query))
 
-    creds = {
-        "api_key": api_key or "",
-        "mcp_url": mcp_url,
-        "tenant_uuid": tenant_uuid,
-        "backend_id": backend_id,
-        "timezone": timezone,
-    }
-    client = make_client(creds)
-    if client is None:
+    if _groundcover_client is None:
         return unavailable(_SOURCE, "groundcover integration not configured")
     if not query.strip():
         return needs_query(_SOURCE)
 
-    result = client.call_tool("query_entities", {"query": query})
-    envelope = build_envelope(_SOURCE, query, result, tr={"live": "true"})
-    return envelope
+    result = _groundcover_client.call_tool("query_entities", {"query": query})
+    return build_envelope(_SOURCE, query, result, tr={"live": "true"})

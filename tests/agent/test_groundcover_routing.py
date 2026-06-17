@@ -53,6 +53,22 @@ def test_seed_calls_prioritize_groundcover_tools() -> None:
     assert "get_groundcover_query_reference" in seeded_names
 
 
+def test_seed_inputs_pass_public_schema_validation() -> None:
+    """Every seeded groundcover tool's injected input must validate (no missing/
+    unexpected args) — regression for blindly-seeded query/mode tools."""
+    from app.agent.investigation import _public_tool_input
+
+    clear_tool_registry_cache()
+    state = _groundcover_state()
+    resolved = state["resolved_integrations"]
+    tools = [t for t in get_registered_tools("investigation") if str(t.source) == "groundcover"]
+    assert tools
+    for tool in tools:
+        seed_input = _public_tool_input(tool.extract_params(resolved))
+        error = tool.validate_public_input(seed_input)
+        assert error is None, f"{tool.name} seed input failed validation: {error}"
+
+
 def test_start_guidance_names_groundcover_primary() -> None:
     clear_tool_registry_cache()
     tools = [t for t in get_registered_tools("investigation") if str(t.source) == "groundcover"]

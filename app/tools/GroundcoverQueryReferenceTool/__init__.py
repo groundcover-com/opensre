@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from app.services.groundcover import GroundcoverClient
 from app.tools.tool_decorator import tool
 from app.tools.utils.availability import groundcover_available_or_backend
-from app.tools.utils.groundcover import groundcover_creds, make_client
+from app.tools.utils.groundcover import base_extract_params
 
 _SOURCE = "groundcover_query_reference"
 
@@ -16,8 +17,7 @@ def _is_available(sources: dict[str, dict]) -> bool:
 
 
 def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
-    gc = sources["groundcover"]
-    return {"groundcover_backend": gc.get("_backend"), **groundcover_creds(gc)}
+    return base_extract_params(sources["groundcover"], include_period=False)
 
 
 @tool(
@@ -38,16 +38,12 @@ def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
         "To recall the performance and time-window guidance for efficient queries",
     ],
     requires=[],
-    input_schema={"type": "object", "properties": {}},
+    input_schema={"type": "object", "properties": {}, "additionalProperties": False},
     is_available=_is_available,
     extract_params=_extract_params,
 )
 def get_groundcover_query_reference(
-    api_key: str | None = None,
-    mcp_url: str = "",
-    tenant_uuid: str = "",
-    backend_id: str = "",
-    timezone: str = "UTC",
+    _groundcover_client: GroundcoverClient | None = None,
     groundcover_backend: Any = None,
     **_kwargs: Any,
 ) -> dict[str, Any]:
@@ -55,22 +51,14 @@ def get_groundcover_query_reference(
     if groundcover_backend is not None and hasattr(groundcover_backend, "get_query_reference"):
         return cast("dict[str, Any]", groundcover_backend.get_query_reference())
 
-    creds = {
-        "api_key": api_key or "",
-        "mcp_url": mcp_url,
-        "tenant_uuid": tenant_uuid,
-        "backend_id": backend_id,
-        "timezone": timezone,
-    }
-    client = make_client(creds)
-    if client is None:
+    if _groundcover_client is None:
         return {
             "source": _SOURCE,
             "available": False,
             "reference": "",
             "error": "groundcover integration not configured",
         }
-    result = client.get_query_reference()
+    result = _groundcover_client.get_query_reference()
     if not result.get("success"):
         return {
             "source": _SOURCE,

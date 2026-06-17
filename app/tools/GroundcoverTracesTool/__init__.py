@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.tools.utils.groundcover import GCQL_GUIDANCE, make_signal_tool
+from app.tools.utils.groundcover import DEFAULT_TRACES_QUERY, GCQL_GUIDANCE, make_signal_tool
 
 query_groundcover_traces = make_signal_tool(
     name="query_groundcover_traces",
@@ -29,6 +29,6 @@ query_groundcover_traces = make_signal_tool(
         "| limit 50'; "
         "'* | filter http.status_code:5* | stats by (workload) count() | limit 20'."
     ),
-    default_query=None,
+    default_query=DEFAULT_TRACES_QUERY,
 )
 query_groundcover_traces.__module__ = __name__

@@ -27,8 +27,10 @@ _MAX_FIELD_CHARS = 1000
 # Default seed queries: cheap, recent, bounded. Used when the alert payload does
 # not carry an explicit query. Every one starts with a filter/`*` and limits rows.
 DEFAULT_LOGS_QUERY = "* | filter level:error | sort by (_time desc) | limit 50"
+DEFAULT_TRACES_QUERY = "* | filter status:error | sort by (_time desc) | limit 50"
 DEFAULT_EVENTS_QUERY = "* | filter type:Warning | sort by (_time desc) | limit 50"
 DEFAULT_ISSUES_QUERY = "* | sort by (_time desc) | limit 50"
+DEFAULT_ENTITIES_QUERY = "kind:Pod | limit 100"
 
 
 # Reusable query-guidance preamble embedded in every gcQL tool description.
@@ -180,7 +182,7 @@ def run_signal_query(
     *,
     source: str,
     mcp_tool: str,
-    creds: dict[str, Any],
+    client: GroundcoverClient | None,
     query: str,
     start: str = "",
     end: str = "",
@@ -190,10 +192,11 @@ def run_signal_query(
 ) -> dict[str, Any]:
     """Shared runner for gcQL signal tools (logs/traces/events/issues/apm).
 
-    When ``backend`` is provided (synthetic harness), the call short-circuits to
-    the fixture backend. Otherwise it runs the MCP tool through the client and
-    returns the normalized envelope. An empty query yields a cheap ``needs_query``
-    envelope without any MCP round trip.
+    ``client`` is a pre-built :class:`GroundcoverClient` (or None) injected via
+    ``extract_params``; credentials never travel through the model-facing tool
+    arguments. When ``backend`` is provided (synthetic harness), the call
+    short-circuits to the fixture backend. An empty query yields a cheap
+    ``needs_query`` envelope without any MCP round trip.
     """
     if backend is not None:
         method = getattr(backend, mcp_tool, None)
@@ -201,7 +204,6 @@ def run_signal_query(
             return cast("dict[str, Any]", method(query=query))
         return unavailable(source, f"groundcover backend does not implement {mcp_tool}")
 
-    client = make_client(creds)
     if client is None:
         return unavailable(source, "groundcover integration not configured")
     if not query.strip():
@@ -221,20 +223,39 @@ def run_signal_query(
     return build_envelope(source, query, result, tr=time_range(start, end, period))
 
 
-def _creds_from_kwargs(
-    api_key: str | None,
-    mcp_url: str,
-    tenant_uuid: str,
-    backend_id: str,
-    timezone: str,
+def client_for_source(gc: dict[str, Any]) -> GroundcoverClient | None:
+    """Build a GroundcoverClient from a resolved ``groundcover`` source entry."""
+    return make_client(groundcover_creds(gc))
+
+
+def base_extract_params(
+    gc: dict[str, Any],
+    *,
+    default_query: str | None = None,
+    include_period: bool = True,
 ) -> dict[str, Any]:
-    return {
-        "api_key": api_key or "",
-        "mcp_url": mcp_url,
-        "tenant_uuid": tenant_uuid,
-        "backend_id": backend_id,
-        "timezone": timezone,
-    }
+    """Inject a pre-built client + optional fixture backend, never raw secrets.
+
+    Credentials are bound here into a runtime ``GroundcoverClient`` object so the
+    model never sees or can override them. The ``_groundcover_client`` and
+    ``groundcover_backend`` keys are runtime objects that the seed-input
+    redactor (``^_`` / ``*backend`` patterns) strips before schema validation.
+    Only real objects (and schema-declared fields) are included so
+    ``additionalProperties: false`` schemas accept the seed input. Tools without
+    a time window (entities/monitors/reference) pass ``include_period=False``.
+    """
+    params: dict[str, Any] = {}
+    if include_period:
+        params["period"] = gc.get("period", "PT1H")
+    if default_query is not None:
+        params["query"] = gc.get("default_query") or default_query
+    backend = gc.get("_backend")
+    if backend is not None:
+        params["groundcover_backend"] = backend
+    client = client_for_source(gc)
+    if client is not None:
+        params["_groundcover_client"] = client
+    return params
 
 
 def make_signal_tool(
@@ -249,14 +270,17 @@ def make_signal_tool(
     query_description: str,
     tags: tuple[str, ...],
     default_query: str | None = None,
+    query_required: bool = True,
     cost_tier: str = "moderate",
 ) -> Callable[..., dict[str, Any]]:
-    """Build a registered gcQL signal tool (logs/traces/events/issues).
+    """Build a registered gcQL signal tool (logs/traces/events/issues/apm).
 
     These tools all share one shape: a gcQL ``query`` plus start/end/period time
     window, run through one MCP tool, returning the normalized envelope. Tools
-    that need bespoke arguments (entities, apm, metrics, monitors) are defined
-    explicitly instead.
+    that need bespoke arguments (entities, metrics, monitors) are defined
+    explicitly instead. ``query_required=False`` is used for tools that cannot be
+    blindly seeded (apm needs mandatory filters) so first-round seeding returns a
+    cheap guidance envelope instead of a validation error.
     """
     # Imported here to avoid importing the tool decorator at module import time
     # for callers that only use the runner/envelope helpers.
@@ -267,33 +291,21 @@ def make_signal_tool(
         return groundcover_available_or_backend(sources)
 
     def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
-        gc = sources["groundcover"]
-        params: dict[str, Any] = {
-            "period": gc.get("period", "PT1H"),
-            "groundcover_backend": gc.get("_backend"),
-            **groundcover_creds(gc),
-        }
-        if default_query is not None:
-            params["query"] = gc.get("default_query") or default_query
-        return params
+        return base_extract_params(sources["groundcover"], default_query=default_query)
 
     def _run(
         query: str = "",
         start: str = "",
         end: str = "",
         period: str = "",
-        api_key: str | None = None,
-        mcp_url: str = "",
-        tenant_uuid: str = "",
-        backend_id: str = "",
-        timezone: str = "UTC",
+        _groundcover_client: GroundcoverClient | None = None,
         groundcover_backend: Any = None,
         **_kwargs: Any,
     ) -> dict[str, Any]:
         return run_signal_query(
             source=envelope_source,
             mcp_tool=mcp_tool,
-            creds=_creds_from_kwargs(api_key, mcp_url, tenant_uuid, backend_id, timezone),
+            client=_groundcover_client,
             query=query,
             start=start,
             end=end,
@@ -322,7 +334,8 @@ def make_signal_tool(
                     "default": "PT1H",
                 },
             },
-            "required": ["query"],
+            "required": ["query"] if query_required else [],
+            "additionalProperties": False,
         },
         is_available=_is_available,
         extract_params=_extract_params,

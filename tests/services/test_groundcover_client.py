@@ -196,6 +196,48 @@ def test_probe_reports_backend_ambiguity(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "GROUNDCOVER_BACKEND_ID" in probe.detail
 
 
+def test_probe_rejects_unknown_configured_tenant(monkeypatch: pytest.MonkeyPatch) -> None:
+    workspaces = [{"tenant_uuid": "t1", "org_name": "Acme", "backends": ["prod"]}]
+    client = GroundcoverClient(_config(tenant_uuid="does-not-exist"))
+    _patch_session(
+        monkeypatch,
+        client,
+        tools=["list_workspaces", "get_gcql_reference"],
+        results={"list_workspaces": _text_result(_json(workspaces))},
+    )
+    probe = client.probe_access()
+    assert probe.status == "failed"
+    assert "GROUNDCOVER_TENANT_UUID" in probe.detail
+    assert "does-not-exist" in probe.detail
+
+
+def test_probe_rejects_unknown_configured_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    workspaces = [{"tenant_uuid": "t1", "org_name": "Acme", "backends": ["prod", "staging"]}]
+    client = GroundcoverClient(_config(tenant_uuid="t1", backend_id="typo"))
+    _patch_session(
+        monkeypatch,
+        client,
+        tools=["list_workspaces", "get_gcql_reference"],
+        results={"list_workspaces": _text_result(_json(workspaces))},
+    )
+    probe = client.probe_access()
+    assert probe.status == "failed"
+    assert "GROUNDCOVER_BACKEND_ID" in probe.detail
+
+
+def test_probe_passes_with_valid_explicit_routing(monkeypatch: pytest.MonkeyPatch) -> None:
+    workspaces = [{"tenant_uuid": "t1", "org_name": "Acme", "backends": ["prod", "staging"]}]
+    client = GroundcoverClient(_config(tenant_uuid="t1", backend_id="prod"))
+    _patch_session(
+        monkeypatch,
+        client,
+        tools=["list_workspaces", "get_gcql_reference", "query_logs"],
+        results={"list_workspaces": _text_result(_json(workspaces))},
+    )
+    probe = client.probe_access()
+    assert probe.status == "passed"
+
+
 def test_probe_passes_single_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
     workspaces = [{"tenant_uuid": "t1", "org_name": "Acme", "backends": ["prod"]}]
     client = GroundcoverClient(_config())

@@ -339,9 +339,9 @@ class GroundcoverClient:
             )
 
         workspaces = workspaces_result.get("workspaces", [])
-        ambiguity = self._routing_ambiguity(workspaces)
-        if ambiguity:
-            return ProbeResult.failed(ambiguity)
+        problem = self._routing_problem(workspaces)
+        if problem:
+            return ProbeResult.failed(problem)
 
         return ProbeResult.passed(
             self._probe_success_detail(tools, workspaces),
@@ -349,10 +349,30 @@ class GroundcoverClient:
             workspaces=len(workspaces),
         )
 
-    def _routing_ambiguity(self, workspaces: list[Any]) -> str | None:
-        """Return an actionable message when routing is needed but unset."""
+    def _routing_problem(self, workspaces: list[Any]) -> str | None:
+        """Return an actionable message when routing is missing, ambiguous, or wrong.
+
+        Catches three failure modes: (a) an account with multiple workspaces and
+        no tenant selected, (b) a configured tenant/backend that does not exist
+        in the account (mistyped value), and (c) a tenant with multiple backends
+        and no backend selected.
+        """
         tenants = [w for w in workspaces if isinstance(w, dict)]
-        if len(tenants) > 1 and not self.config.tenant_uuid:
+
+        # (b) configured tenant must actually exist.
+        if self.config.tenant_uuid:
+            matched = [t for t in tenants if t.get("tenant_uuid") == self.config.tenant_uuid]
+            if not matched:
+                options = ", ".join(
+                    f"{t.get('org_name', '?')} ({t.get('tenant_uuid', '?')})" for t in tenants
+                )
+                return (
+                    f"Configured GROUNDCOVER_TENANT_UUID '{self.config.tenant_uuid}' is not one of "
+                    f"your workspaces. Available: {options or 'none'}"
+                )
+            tenants = matched
+        elif len(tenants) > 1:
+            # (a) ambiguous: multiple workspaces, none selected.
             options = ", ".join(
                 f"{t.get('org_name', '?')} ({t.get('tenant_uuid', '?')})" for t in tenants
             )
@@ -360,17 +380,26 @@ class GroundcoverClient:
                 f"Account has {len(tenants)} workspaces; set GROUNDCOVER_TENANT_UUID to "
                 f"select one. Available: {options}"
             )
-        if self.config.tenant_uuid:
-            tenants = [t for t in tenants if t.get("tenant_uuid") == self.config.tenant_uuid]
-        if not self.config.backend_id:
-            for tenant in tenants:
-                backends = tenant.get("backends") or []
-                if isinstance(backends, list) and len(backends) > 1:
+
+        for tenant in tenants:
+            backends = tenant.get("backends") or []
+            if not isinstance(backends, list):
+                continue
+            if self.config.backend_id:
+                # (b) configured backend must exist in the selected tenant.
+                if self.config.backend_id not in [str(b) for b in backends]:
                     return (
-                        f"Workspace {tenant.get('org_name', '?')} has {len(backends)} backends; "
-                        f"set GROUNDCOVER_BACKEND_ID to select one. Available: "
-                        f"{', '.join(str(b) for b in backends)}"
+                        f"Configured GROUNDCOVER_BACKEND_ID '{self.config.backend_id}' is not a "
+                        f"backend of workspace {tenant.get('org_name', '?')}. Available: "
+                        f"{', '.join(str(b) for b in backends) or 'none'}"
                     )
+            elif len(backends) > 1:
+                # (c) ambiguous: multiple backends, none selected.
+                return (
+                    f"Workspace {tenant.get('org_name', '?')} has {len(backends)} backends; "
+                    f"set GROUNDCOVER_BACKEND_ID to select one. Available: "
+                    f"{', '.join(str(b) for b in backends)}"
+                )
         return None
 
     def _probe_success_detail(self, tools: list[str], workspaces: list[Any]) -> str:

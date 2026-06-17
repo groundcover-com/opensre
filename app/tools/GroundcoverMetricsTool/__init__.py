@@ -4,14 +4,10 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from app.services.groundcover import GroundcoverClient
 from app.tools.tool_decorator import tool
 from app.tools.utils.availability import groundcover_available_or_backend
-from app.tools.utils.groundcover import (
-    build_envelope,
-    groundcover_creds,
-    make_client,
-    unavailable,
-)
+from app.tools.utils.groundcover import base_extract_params, build_envelope, unavailable
 
 _SOURCE = "groundcover_metrics"
 _MODES = ("get_names", "get_labels", "query_range", "query_instant")
@@ -22,8 +18,7 @@ def _is_available(sources: dict[str, dict]) -> bool:
 
 
 def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
-    gc = sources["groundcover"]
-    return {"groundcover_backend": gc.get("_backend"), **groundcover_creds(gc)}
+    return base_extract_params(sources["groundcover"])
 
 
 def _guidance(message: str) -> dict[str, Any]:
@@ -86,7 +81,8 @@ def _guidance(message: str) -> dict[str, Any]:
             "clusters": {"type": "array", "items": {"type": "string"}},
             "limit": {"type": "integer", "default": 100},
         },
-        "required": ["mode"],
+        "required": [],
+        "additionalProperties": False,
     },
     is_available=_is_available,
     extract_params=_extract_params,
@@ -103,11 +99,7 @@ def query_groundcover_metrics(
     envs: list[str] | None = None,
     clusters: list[str] | None = None,
     limit: int = 100,
-    api_key: str | None = None,
-    mcp_url: str = "",
-    tenant_uuid: str = "",
-    backend_id: str = "",
-    timezone: str = "UTC",
+    _groundcover_client: GroundcoverClient | None = None,
     groundcover_backend: Any = None,
     **_kwargs: Any,
 ) -> dict[str, Any]:
@@ -125,15 +117,7 @@ def query_groundcover_metrics(
     if mode in ("query_range", "query_instant") and not promql:
         return _guidance(f"{mode} requires a promql query using a verified metric name.")
 
-    creds = {
-        "api_key": api_key or "",
-        "mcp_url": mcp_url,
-        "tenant_uuid": tenant_uuid,
-        "backend_id": backend_id,
-        "timezone": timezone,
-    }
-    client = make_client(creds)
-    if client is None:
+    if _groundcover_client is None:
         return unavailable(_SOURCE, "groundcover integration not configured")
 
     args: dict[str, Any] = {"mode": mode, "limit": limit}
@@ -156,6 +140,5 @@ def query_groundcover_metrics(
     if clusters:
         args["clusters"] = clusters
 
-    result = client.call_tool("query_metrics", args)
-    envelope = build_envelope(_SOURCE, promql or filter or mode, result, tr={"mode": mode})
-    return envelope
+    result = _groundcover_client.call_tool("query_metrics", args)
+    return build_envelope(_SOURCE, promql or filter or mode, result, tr={"mode": mode})

@@ -37,5 +37,6 @@ query_groundcover_apm = make_signal_tool(
         "| limit 20'."
     ),
     default_query=None,
+    query_required=False,
 )
 query_groundcover_apm.__module__ = __name__
