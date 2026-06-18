@@ -813,10 +813,12 @@ def _configure_groundcover() -> tuple[str, str]:
         tenant_uuid = _prompt_value(
             "Tenant UUID (optional, multi-workspace accounts)",
             default=_string_value(credentials.get("tenant_uuid")),
+            allow_empty=True,
         )
         backend_id = _prompt_value(
             "Backend ID (optional, multi-backend tenants)",
             default=_string_value(credentials.get("backend_id")),
+            allow_empty=True,
         )
         timezone = _prompt_value(
             "Timezone",

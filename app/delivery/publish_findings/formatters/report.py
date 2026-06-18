@@ -40,7 +40,7 @@ def _format_provenance_lines(ctx: ReportContext) -> list[str]:
     provenance = ctx.get("source_provenance") or {}
     lines: list[str] = []
     for source_name, entry in provenance.items():
-        label = entry.get("label") or apply_brand_casing(source_name.title())
+        label = apply_brand_casing(entry.get("label") or source_name.title())
         summary = entry.get("summary") or ""
         if summary:
             lines.append(f"• {label}: {summary}")

@@ -204,6 +204,11 @@ _ENV_LOADER_CASES: list[tuple[str, dict[str, str], str]] = [
     ),
     # Pattern C
     (
+        "groundcover",
+        {"GROUNDCOVER_API_KEY": "k"},
+        "GroundcoverIntegrationConfig",
+    ),
+    (
         "incident_io",
         {"INCIDENT_IO_API_KEY": "k"},
         "IncidentIoIntegrationConfig",

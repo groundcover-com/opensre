@@ -13,8 +13,8 @@ query_groundcover_logs = make_signal_tool(
     tags=("logs", "observability"),
     description=(
         "Search groundcover logs with gcQL. Use for application errors, exceptions, and service "
-        "log events. " + GCQL_GUIDANCE + " Discover fields with search_groundcover_logs_metadata "
-        "or '* | field_names'."
+        "log events. " + GCQL_GUIDANCE + " Discover fields with '* | field_names' or by calling "
+        "get_groundcover_query_reference."
     ),
     use_cases=[
         "Finding error/exception logs for a workload or namespace",

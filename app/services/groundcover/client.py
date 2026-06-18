@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -187,20 +187,17 @@ class GroundcoverClient:
         finally:
             await stack.aclose()
 
-    async def _list_tools_async(self) -> list[str]:
-        async with self._session() as session:
-            result = await session.list_tools()
-            return [tool.name for tool in result.tools]
+    async def _with_connect_retry[T](self, op: Callable[[ClientSession], Awaitable[T]]) -> T:
+        """Open a session and run ``op``, retrying only connection-level failures.
 
-    async def _call_tool_async(
-        self, tool_name: str, arguments: dict[str, Any] | None
-    ) -> GroundcoverToolResult:
+        Read-only/idempotent MCP calls (tools-list, query tools) are safe to retry
+        on transient connect errors; the retry budget is intentionally tiny.
+        """
         last_exc: BaseException | None = None
         for attempt in range(_MAX_CONNECT_RETRIES + 1):
             try:
                 async with self._session() as session:
-                    result = await session.call_tool(tool_name, arguments or {})
-                    return self._normalize_tool_result(tool_name, result)
+                    return await op(session)
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 last_exc = exc
                 if attempt < _MAX_CONNECT_RETRIES:
@@ -209,6 +206,22 @@ class GroundcoverClient:
         # Unreachable, but keeps the type checker satisfied.
         assert last_exc is not None
         raise last_exc
+
+    async def _list_tools_async(self) -> list[str]:
+        async def _op(session: ClientSession) -> list[str]:
+            result = await session.list_tools()
+            return [tool.name for tool in result.tools]
+
+        return await self._with_connect_retry(_op)
+
+    async def _call_tool_async(
+        self, tool_name: str, arguments: dict[str, Any] | None
+    ) -> GroundcoverToolResult:
+        async def _op(session: ClientSession) -> GroundcoverToolResult:
+            result = await session.call_tool(tool_name, arguments or {})
+            return self._normalize_tool_result(tool_name, result)
+
+        return await self._with_connect_retry(_op)
 
     def _normalize_tool_result(
         self, tool_name: str, result: types.CallToolResult

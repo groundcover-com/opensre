@@ -14,7 +14,7 @@ query_groundcover_traces = make_signal_tool(
     description=(
         "Query groundcover traces/spans with gcQL. Use to find slow spans, failing spans, and "
         "request correlations across services. " + GCQL_GUIDANCE + " Discover fields with "
-        "search_groundcover_traces_metadata or '* | field_names'. For traces, free text needs "
+        "'* | field_names'. For traces, free text needs "
         "'*:*term*' or 'field:*term*' (no bare keywords). Use http.status_code for HTTP errors "
         "and status:error for span-level errors."
     ),

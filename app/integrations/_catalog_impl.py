@@ -1205,21 +1205,29 @@ def load_env_integrations() -> list[dict[str, Any]]:
             or os.getenv("GROUNDCOVER_MCP_TOKEN", "").strip()
         )
     if groundcover_api_key:
-        groundcover_config = GroundcoverIntegrationConfig.model_validate(
-            {
-                "api_key": groundcover_api_key,
-                "mcp_url": os.getenv("GROUNDCOVER_MCP_URL", "").strip(),
-                "tenant_uuid": os.getenv("GROUNDCOVER_TENANT_UUID", "").strip(),
-                "backend_id": os.getenv("GROUNDCOVER_BACKEND_ID", "").strip(),
-                "timezone": os.getenv("GROUNDCOVER_TIMEZONE", "").strip(),
-            }
-        )
-        integrations.append(
-            _active_env_record(
-                "groundcover",
-                groundcover_config.model_dump(exclude={"integration_id"}),
+        # Unlike most key-only providers, the groundcover config validates the MCP
+        # URL (HTTPS-or-loopback), which can raise on a bad GROUNDCOVER_MCP_URL.
+        # Guard it so one malformed value cannot abort discovery of every other
+        # env integration.
+        try:
+            groundcover_config = GroundcoverIntegrationConfig.model_validate(
+                {
+                    "api_key": groundcover_api_key,
+                    "mcp_url": os.getenv("GROUNDCOVER_MCP_URL", "").strip(),
+                    "tenant_uuid": os.getenv("GROUNDCOVER_TENANT_UUID", "").strip(),
+                    "backend_id": os.getenv("GROUNDCOVER_BACKEND_ID", "").strip(),
+                    "timezone": os.getenv("GROUNDCOVER_TIMEZONE", "").strip(),
+                }
             )
-        )
+        except Exception as exc:
+            _report_env_loader_failure(exc, integration="groundcover")
+        else:
+            integrations.append(
+                _active_env_record(
+                    "groundcover",
+                    groundcover_config.model_dump(exclude={"integration_id"}),
+                )
+            )
 
     honeycomb_multi = _parse_instances_env("HONEYCOMB_INSTANCES", "honeycomb")
     if honeycomb_multi is not None:

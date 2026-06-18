@@ -15,7 +15,7 @@ query_groundcover_events = make_signal_tool(
         "Query groundcover Kubernetes events with gcQL. Use for warning/lifecycle evidence such "
         "as OOMKilled, CrashLoopBackOff, FailedScheduling, and image pull errors. "
         + GCQL_GUIDANCE
-        + " Discover fields with search_groundcover_events_metadata or '* | field_names'."
+        + " Discover fields with '* | field_names'."
     ),
     use_cases=[
         "Finding Warning events (OOMKilled, FailedScheduling) for a namespace or workload",

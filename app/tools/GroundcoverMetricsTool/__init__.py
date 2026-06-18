@@ -105,7 +105,22 @@ def query_groundcover_metrics(
 ) -> dict[str, Any]:
     """Query groundcover metrics across discovery and PromQL modes."""
     if groundcover_backend is not None and hasattr(groundcover_backend, "query_metrics"):
-        return cast("dict[str, Any]", groundcover_backend.query_metrics(mode=mode, promql=promql))
+        return cast(
+            "dict[str, Any]",
+            groundcover_backend.query_metrics(
+                mode=mode,
+                filter=filter,
+                metric_name=metric_name,
+                promql=promql,
+                step=step,
+                start=start,
+                end=end,
+                period=period,
+                envs=envs,
+                clusters=clusters,
+                limit=limit,
+            ),
+        )
 
     if mode not in _MODES:
         return _guidance(
