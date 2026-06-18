@@ -88,6 +88,7 @@ _CLASSIFY_PATCH_TARGETS: list[tuple[str, str]] = [
     ("grafana", "GrafanaIntegrationConfig"),
     ("aws", "AWSIntegrationConfig"),
     ("datadog", "DatadogIntegrationConfig"),
+    ("groundcover", "GroundcoverIntegrationConfig"),
     ("honeycomb", "HoneycombIntegrationConfig"),
     ("coralogix", "CoralogixIntegrationConfig"),
     ("github", "build_github_mcp_config"),
@@ -202,6 +203,11 @@ _ENV_LOADER_CASES: list[tuple[str, dict[str, str], str]] = [
         "HelmIntegrationConfig",
     ),
     # Pattern C
+    (
+        "groundcover",
+        {"GROUNDCOVER_API_KEY": "k"},
+        "GroundcoverIntegrationConfig",
+    ),
     (
         "incident_io",
         {"INCIDENT_IO_API_KEY": "k"},

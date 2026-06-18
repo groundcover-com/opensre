@@ -44,6 +44,7 @@ def test_legacy_integration_health_import_surface_still_exports_validators() -> 
         "validate_gitlab_integration",
         "validate_google_docs_integration",
         "validate_grafana_integration",
+        "validate_groundcover_integration",
         "validate_honeycomb_integration",
         "validate_incident_io_integration",
         "validate_jenkins_integration",

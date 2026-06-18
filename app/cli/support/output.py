@@ -528,6 +528,8 @@ def _tool_source_label(tool_name: str) -> str:
         return "SRE"
     if source == "openclaw":
         return "OpenClaw"
+    if source == "groundcover":
+        return "groundcover"  # brand is always lowercase
     return source.replace("_", " ").title() if source else "Tools"
 
 

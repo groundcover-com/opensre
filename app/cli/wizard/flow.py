@@ -80,6 +80,12 @@ def validate_datadog_integration(**kwargs):
     return _validate(**kwargs)
 
 
+def validate_groundcover_integration(**kwargs):
+    from app.cli.wizard.integration_health import validate_groundcover_integration as _validate
+
+    return _validate(**kwargs)
+
+
 def validate_honeycomb_integration(**kwargs):
     from app.cli.wizard.integration_health import validate_honeycomb_integration as _validate
 
@@ -787,6 +793,59 @@ def _configure_datadog() -> tuple[str, str]:
             )
             env_path = sync_env_values({})
             return "Datadog", str(env_path)
+        _console.print(f"[{SECONDARY}]Try again or press Ctrl+C to cancel.[/]")
+
+
+def _configure_groundcover() -> tuple[str, str]:
+    _, credentials = _integration_defaults("groundcover")
+    while True:
+        api_key = _prompt_value(
+            "groundcover service-account API key",
+            default=_string_value(credentials.get("api_key")),
+            secret=True,
+        )
+        mcp_url = _prompt_value(
+            "groundcover MCP URL",
+            default=_string_value(
+                credentials.get("mcp_url"), "https://mcp.groundcover.com/api/mcp"
+            ),
+        )
+        tenant_uuid = _prompt_value(
+            "Tenant UUID (optional, multi-workspace accounts)",
+            default=_string_value(credentials.get("tenant_uuid")),
+            allow_empty=True,
+        )
+        backend_id = _prompt_value(
+            "Backend ID (optional, multi-backend tenants)",
+            default=_string_value(credentials.get("backend_id")),
+            allow_empty=True,
+        )
+        timezone = _prompt_value(
+            "Timezone",
+            default=_string_value(credentials.get("timezone"), "UTC"),
+        )
+        with _console.status("Validating groundcover integration...", spinner="dots"):
+            result = validate_groundcover_integration(
+                api_key=api_key,
+                mcp_url=mcp_url,
+                tenant_uuid=tenant_uuid,
+                backend_id=backend_id,
+                timezone=timezone,
+            )
+        _render_integration_result("groundcover", result)
+        if result.ok:
+            new_credentials: dict[str, str] = {
+                "api_key": api_key,
+                "mcp_url": mcp_url,
+                "timezone": timezone,
+            }
+            if tenant_uuid:
+                new_credentials["tenant_uuid"] = tenant_uuid
+            if backend_id:
+                new_credentials["backend_id"] = backend_id
+            upsert_integration("groundcover", {"credentials": new_credentials})
+            env_path = sync_env_values({})
+            return "groundcover", str(env_path)
         _console.print(f"[{SECONDARY}]Try again or press Ctrl+C to cancel.[/]")
 
 
@@ -2044,6 +2103,11 @@ def _configure_selected_integrations() -> tuple[list[str], str | None]:
             hint="Connect an existing Grafana instance",
         ),
         Choice(value="datadog", label="Datadog", hint="Logs, monitors, and Kubernetes context"),
+        Choice(
+            value="groundcover",
+            label="groundcover",
+            hint="Logs, traces, metrics, APM, monitors, and K8s events via gcQL",
+        ),
         Choice(value="honeycomb", label="Honeycomb", hint="Query traces and spans from Honeycomb"),
         Choice(value="coralogix", label="Coralogix", hint="Query logs from Coralogix DataPrime"),
         Choice(value="slack", label="Slack", hint="Send findings to a webhook or channel"),
@@ -2156,6 +2220,7 @@ def _configure_selected_integrations() -> tuple[list[str], str | None]:
         "grafana_local": _configure_grafana_local,
         "grafana": _configure_grafana,
         "datadog": _configure_datadog,
+        "groundcover": _configure_groundcover,
         "honeycomb": _configure_honeycomb,
         "coralogix": _configure_coralogix,
         "slack": _configure_slack,
@@ -2185,6 +2250,7 @@ def _configure_selected_integrations() -> tuple[list[str], str | None]:
         "grafana_local": "grafana local",
         "grafana": "grafana",
         "datadog": "datadog",
+        "groundcover": "groundcover",
         "honeycomb": "honeycomb",
         "coralogix": "coralogix",
         "slack": "slack",

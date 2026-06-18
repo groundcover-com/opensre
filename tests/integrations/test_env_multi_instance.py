@@ -18,6 +18,9 @@ def _clear_env(monkeypatch) -> None:
         "DD_API_KEY",
         "DD_APP_KEY",
         "DD_SITE",
+        "GROUNDCOVER_INSTANCES",
+        "GROUNDCOVER_API_KEY",
+        "GROUNDCOVER_MCP_TOKEN",
         "HONEYCOMB_INSTANCES",
         "HONEYCOMB_API_KEY",
         "CORALOGIX_INSTANCES",
@@ -156,6 +159,11 @@ def test_empty_json_array_falls_through_to_legacy(
             "DD_INSTANCES",
             "datadog",
             {"name": "prod", "api_key": "k", "app_key": "a", "site": "datadoghq.com"},
+        ),
+        (
+            "GROUNDCOVER_INSTANCES",
+            "groundcover",
+            {"name": "prod", "api_key": "k", "tenant_uuid": "t1"},
         ),
         (
             "HONEYCOMB_INSTANCES",
