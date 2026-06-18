@@ -292,6 +292,7 @@ _SERVICE_DISPLAY_NAMES: dict[str, str] = {
     "mariadb": "MariaDB",
     "kubernetes": "Kubernetes",
     "betterstack": "Better Stack",
+    "groundcover": "groundcover",
     "snowflake": "Snowflake",
     "newrelic": "New Relic",
     "opsgenie": "OpsGenie",
