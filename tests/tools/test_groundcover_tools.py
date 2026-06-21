@@ -133,9 +133,14 @@ def test_logs_upstream_error_envelope() -> None:
 def test_logs_uses_backend_when_injected() -> None:
     backend = MagicMock()
     backend.query_logs.return_value = {"source": "groundcover_logs", "available": True, "data": []}
-    result = query_groundcover_logs(query="* | limit 10", groundcover_backend=backend)
+    result = query_groundcover_logs(
+        query="level:error | limit 10", period="PT2H", groundcover_backend=backend
+    )
     assert result["available"] is True
-    backend.query_logs.assert_called_once()
+    # Time-window params must be forwarded to the backend, not dropped.
+    backend.query_logs.assert_called_once_with(
+        query="level:error | limit 10", start="", end="", period="PT2H"
+    )
 
 
 def test_traces_happy_path() -> None:

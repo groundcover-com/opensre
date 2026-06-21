@@ -206,7 +206,10 @@ def run_signal_query(
     if backend is not None:
         method = getattr(backend, mcp_tool, None)
         if callable(method):
-            return cast("dict[str, Any]", method(query=query))
+            return cast(
+                "dict[str, Any]",
+                method(query=query, start=start, end=end, period=period),
+            )
         return unavailable(source, f"groundcover backend does not implement {mcp_tool}")
 
     if client is None:
