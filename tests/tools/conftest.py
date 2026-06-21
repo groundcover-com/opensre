@@ -40,7 +40,7 @@ def mock_agent_state(overrides: dict | None = None) -> dict[str, Any]:
             "tenant_uuid": "",
             "backend_id": "",
             "timezone": "UTC",
-            "default_query": "* | filter level:error | limit 50",
+            "default_query": "level:error | fields _time, workload, instance, content | limit 50",
             "period": "PT1H",
         },
         "grafana": {

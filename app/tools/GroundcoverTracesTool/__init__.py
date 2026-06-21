@@ -19,10 +19,13 @@ _MCP_TOOL = "query_traces"
 
 _QUERY_DESCRIPTION = (
     "gcQL query. Lead with the filter directly (not a '| filter' pipe) and include "
-    "'| limit N'. Examples: "
-    "'workload:checkout duration_seconds>0.5 | sort by (duration_seconds desc) | limit 50'; "
+    "'| limit N'. Project raw spans with '| fields ...' (a bare select-all '| limit N' is "
+    "rejected for traces); otherwise aggregate with '| stats ...'. Examples: "
+    "'workload:checkout duration_seconds>0.5 | fields _time, span_name, duration_seconds "
+    "| sort by (duration_seconds desc) | limit 50'; "
     "'status_code>=500 | stats by (workload) count() as errors | sort by (errors desc) "
-    "| limit 20'; 'span_type:mysql status:error | limit 50'."
+    "| limit 20'; "
+    "'span_type:mysql status:error | fields _time, span_name, status_code | limit 50'."
 )
 
 

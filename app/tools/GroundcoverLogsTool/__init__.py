@@ -19,8 +19,9 @@ _MCP_TOOL = "query_logs"
 
 _QUERY_DESCRIPTION = (
     "gcQL query. Lead with the filter directly (not a '| filter' pipe) and include "
-    "'| limit N'. Examples: 'level:error | limit 50'; "
-    "'workload:checkout level:error | limit 50'; "
+    "'| limit N'. Project raw rows with '| fields ...' rather than a bare select-all. "
+    "Examples: 'level:error | fields _time, workload, instance, content | limit 50'; "
+    "'workload:checkout level:error | fields _time, instance, content | limit 50'; "
     "'* | stats by (workload) count() if (level:error) as errors | sort by (errors desc) "
     "| limit 20'."
 )
