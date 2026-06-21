@@ -13,10 +13,12 @@ _SOURCE = "groundcover_query_reference"
 
 
 def _is_available(sources: dict[str, dict]) -> bool:
+    """Available when groundcover credentials are present or a fixture backend is injected."""
     return groundcover_available_or_backend(sources)
 
 
 def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
+    """Inject a pre-built client (no time window), never raw credentials."""
     return base_extract_params(sources["groundcover"], include_period=False)
 
 

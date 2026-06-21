@@ -11,7 +11,6 @@ is shared infrastructure, not a registered tool.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, cast
 
 from app.services.groundcover import GroundcoverClient, GroundcoverConfig, GroundcoverToolResult
@@ -256,88 +255,3 @@ def base_extract_params(
     if client is not None:
         params["_groundcover_client"] = client
     return params
-
-
-def make_signal_tool(
-    *,
-    name: str,
-    display_name: str,
-    mcp_tool: str,
-    source: str,
-    envelope_source: str,
-    description: str,
-    use_cases: list[str],
-    query_description: str,
-    tags: tuple[str, ...],
-    default_query: str | None = None,
-    query_required: bool = True,
-    cost_tier: str = "moderate",
-) -> Callable[..., dict[str, Any]]:
-    """Build a registered gcQL signal tool (logs/traces/events/issues/apm).
-
-    These tools all share one shape: a gcQL ``query`` plus start/end/period time
-    window, run through one MCP tool, returning the normalized envelope. Tools
-    that need bespoke arguments (entities, metrics, monitors) are defined
-    explicitly instead. ``query_required=False`` is used for tools that cannot be
-    blindly seeded (apm needs mandatory filters) so first-round seeding returns a
-    cheap guidance envelope instead of a validation error.
-    """
-    # Imported here to avoid importing the tool decorator at module import time
-    # for callers that only use the runner/envelope helpers.
-    from app.tools.tool_decorator import tool
-    from app.tools.utils.availability import groundcover_available_or_backend
-
-    def _is_available(sources: dict[str, dict]) -> bool:
-        return groundcover_available_or_backend(sources)
-
-    def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
-        return base_extract_params(sources["groundcover"], default_query=default_query)
-
-    def _run(
-        query: str = "",
-        start: str = "",
-        end: str = "",
-        period: str = "",
-        _groundcover_client: GroundcoverClient | None = None,
-        groundcover_backend: Any = None,
-        **_kwargs: Any,
-    ) -> dict[str, Any]:
-        return run_signal_query(
-            source=envelope_source,
-            mcp_tool=mcp_tool,
-            client=_groundcover_client,
-            query=query,
-            start=start,
-            end=end,
-            period=period,
-            backend=groundcover_backend,
-        )
-
-    decorated = tool(
-        name=name,
-        display_name=display_name,
-        source=cast("Any", source),
-        tags=tags,
-        cost_tier=cast("Any", cost_tier),
-        description=description,
-        use_cases=use_cases,
-        requires=[],
-        input_schema={
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": query_description},
-                "start": {"type": "string", "description": "RFC3339 start time (optional)"},
-                "end": {"type": "string", "description": "RFC3339 end time (optional)"},
-                "period": {
-                    "type": "string",
-                    "description": "ISO-8601 duration window, e.g. PT1H (default).",
-                    "default": "PT1H",
-                },
-            },
-            "required": ["query"] if query_required else [],
-            "additionalProperties": False,
-        },
-        is_available=_is_available,
-        extract_params=_extract_params,
-    )(_run)
-    return cast("Callable[..., dict[str, Any]]", decorated)
