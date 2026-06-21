@@ -26,8 +26,8 @@ _MAX_FIELD_CHARS = 1000
 # Default seed queries: cheap, recent, bounded. Used when the alert payload does
 # not carry an explicit query. gcQL leads with the filter directly (no `| filter`
 # pipe — that pipe is for post-aggregation conditions on computed aliases).
-DEFAULT_LOGS_QUERY = "level:error | sort by (_time desc) | limit 50"
-DEFAULT_TRACES_QUERY = "status:error | sort by (_time desc) | limit 50"
+DEFAULT_LOGS_QUERY = "level:error | limit 50"
+DEFAULT_TRACES_QUERY = "status:error | limit 50"
 
 
 # Reusable query-guidance preamble embedded in every gcQL tool description.

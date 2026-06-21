@@ -20,7 +20,7 @@ _MCP_TOOL = "query_logs"
 _QUERY_DESCRIPTION = (
     "gcQL query. Lead with the filter directly (not a '| filter' pipe) and include "
     "'| limit N'. Examples: 'level:error | limit 50'; "
-    "'workload:checkout level:error | sort by (_time desc) | limit 50'; "
+    "'workload:checkout level:error | limit 50'; "
     "'* | stats by (workload) count() if (level:error) as errors | sort by (errors desc) "
     "| limit 20'."
 )
