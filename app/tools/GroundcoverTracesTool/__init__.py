@@ -14,9 +14,11 @@ query_groundcover_traces = make_signal_tool(
     description=(
         "Query groundcover traces/spans with gcQL. Use to find slow spans, failing spans, and "
         "request correlations across services. " + GCQL_GUIDANCE + " Discover fields with "
-        "'* | field_names'. For traces, free text needs "
-        "'*:*term*' or 'field:*term*' (no bare keywords). Use http.status_code for HTTP errors "
-        "and status:error for span-level errors."
+        "'* | field_names'. For traces, free text needs '*:*term*' or 'field:*term*' (no bare "
+        "keywords). Error filtering by span type: HTTP spans use 'status_code>=500' (or "
+        "'status_code>399'); databases/gRPC/messaging and any span type use 'status:error' "
+        "(universal). Never use 'status_code>399' on non-HTTP spans — their codes differ. Key "
+        "fields: span_name (endpoint), workload (caller), server (callee), duration_seconds, status."
     ),
     use_cases=[
         "Finding the slowest spans for a workload (sort by duration_seconds desc)",
@@ -27,7 +29,8 @@ query_groundcover_traces = make_signal_tool(
         "gcQL query. Lead with the filter directly (not a '| filter' pipe) and include "
         "'| limit N'. Examples: "
         "'workload:checkout duration_seconds>0.5 | sort by (duration_seconds desc) | limit 50'; "
-        "'http.status_code:5* | stats by (workload) count() | limit 20'."
+        "'status_code>=500 | stats by (workload) count() as errors | sort by (errors desc) "
+        "| limit 20'; 'span_type:mysql status:error | limit 50'."
     ),
     default_query=DEFAULT_TRACES_QUERY,
 )
