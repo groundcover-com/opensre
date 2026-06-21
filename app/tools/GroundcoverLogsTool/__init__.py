@@ -22,8 +22,9 @@ query_groundcover_logs = make_signal_tool(
         "Counting errors per workload with a single stats query over a narrow window",
     ],
     query_description=(
-        "gcQL query. Start with a filter or '*' and include '| limit N'. Examples: "
-        "'* | filter level:error | limit 50'; "
+        "gcQL query. Lead with the filter directly (not a '| filter' pipe) and include "
+        "'| limit N'. Examples: 'level:error | limit 50'; "
+        "'workload:checkout level:error | sort by (_time desc) | limit 50'; "
         "'* | stats by (workload) count() if (level:error) as errors | sort by (errors desc) "
         "| limit 20'."
     ),

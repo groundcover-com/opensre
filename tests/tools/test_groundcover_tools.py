@@ -104,9 +104,7 @@ def test_logs_empty_query_returns_needs_query() -> None:
 
 def test_logs_happy_path_envelope() -> None:
     client = _client(_ok([{"level": "error", "content": "boom"}]))
-    result = query_groundcover_logs(
-        query="* | filter level:error | limit 10", _groundcover_client=client
-    )
+    result = query_groundcover_logs(query="level:error | limit 10", _groundcover_client=client)
     assert result["available"] is True
     assert result["source"] == "groundcover_logs"
     assert result["data"] == [{"level": "error", "content": "boom"}]

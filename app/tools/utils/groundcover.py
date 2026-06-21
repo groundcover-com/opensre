@@ -25,9 +25,10 @@ _ENVELOPE_ROW_CAP = 100
 _MAX_FIELD_CHARS = 1000
 
 # Default seed queries: cheap, recent, bounded. Used when the alert payload does
-# not carry an explicit query. Every one starts with a filter/`*` and limits rows.
-DEFAULT_LOGS_QUERY = "* | filter level:error | sort by (_time desc) | limit 50"
-DEFAULT_TRACES_QUERY = "* | filter status:error | sort by (_time desc) | limit 50"
+# not carry an explicit query. gcQL leads with the filter directly (no `| filter`
+# pipe — that pipe is for post-aggregation conditions on computed aliases).
+DEFAULT_LOGS_QUERY = "level:error | sort by (_time desc) | limit 50"
+DEFAULT_TRACES_QUERY = "status:error | sort by (_time desc) | limit 50"
 
 
 # Reusable query-guidance preamble embedded in every gcQL tool description.
@@ -38,8 +39,10 @@ GCQL_GUIDANCE = (
     "Keep the window as narrow as the question allows: start with the last 1h (default) and "
     "widen only after an empty/inconclusive result. Wide multi-day scans with selective filters "
     "can time out — '| limit N' caps rows RETURNED, not data SCANNED, so for wide ranges prefer "
-    "stats/aggregations over raw row pulls. Queries must start with a filter or '*' (never a bare "
-    "'|') and must include '| limit N'. Discover fields before guessing. "
+    "stats/aggregations over raw row pulls. Queries must start with the filter directly "
+    "(e.g. 'level:error | limit 50') or '*' for match-all — never a bare '|', and the '| filter' "
+    "pipe is only for post-aggregation conditions on computed aliases. Always include '| limit N'. "
+    "Discover fields before guessing. "
     "Call get_groundcover_query_reference once per session before composing non-trivial gcQL."
 )
 

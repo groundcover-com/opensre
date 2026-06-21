@@ -24,10 +24,10 @@ query_groundcover_traces = make_signal_tool(
         "Aggregating error rate and p95 latency per workload with one stats query",
     ],
     query_description=(
-        "gcQL query. Start with a filter or '*' and include '| limit N'. Examples: "
-        "'* | filter workload:checkout duration_seconds>0.5 | sort by (duration_seconds desc) "
-        "| limit 50'; "
-        "'* | filter http.status_code:5* | stats by (workload) count() | limit 20'."
+        "gcQL query. Lead with the filter directly (not a '| filter' pipe) and include "
+        "'| limit N'. Examples: "
+        "'workload:checkout duration_seconds>0.5 | sort by (duration_seconds desc) | limit 50'; "
+        "'http.status_code:5* | stats by (workload) count() | limit 20'."
     ),
     default_query=DEFAULT_TRACES_QUERY,
 )
