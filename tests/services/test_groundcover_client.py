@@ -165,6 +165,19 @@ def test_probe_fails_when_required_tools_absent(monkeypatch: pytest.MonkeyPatch)
     assert "list_workspaces" in probe.detail
 
 
+def test_probe_fails_when_no_workspaces(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = GroundcoverClient(_config())
+    _patch_session(
+        monkeypatch,
+        client,
+        tools=["list_workspaces", "get_gcql_reference"],
+        results={"list_workspaces": _text_result(_json([]))},
+    )
+    probe = client.probe_access()
+    assert probe.status == "failed"
+    assert "no workspaces" in probe.detail.lower()
+
+
 def test_probe_reports_tenant_ambiguity(monkeypatch: pytest.MonkeyPatch) -> None:
     workspaces = [
         {"tenant_uuid": "t1", "org_name": "Acme", "backends": ["prod"]},

@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
@@ -61,10 +62,13 @@ EXPECTED_PUBLIC_TOOLS: tuple[str, ...] = (
 # surface; per-signal tools can vary slightly by deployment version.
 _REQUIRED_VERIFY_TOOLS: tuple[str, ...] = ("list_workspaces", "get_gcql_reference")
 
-# Module-level cache for the gcQL reference text, keyed by endpoint. The
-# reference is static skill content, so caching avoids re-spending tokens/round
-# trips when several tools/sessions ask for it in one process.
-_REFERENCE_CACHE: dict[str, str] = {}
+# Module-level cache for the gcQL reference text, keyed by endpoint, holding
+# ``(reference, fetched_monotonic)``. The reference is near-static skill content,
+# so caching avoids re-spending tokens/round trips when several tools/sessions
+# ask for it in one process. A TTL bounds staleness so a deployment that updates
+# its gcQL reference is picked up without a process restart.
+_REFERENCE_TTL_SECONDS = 6 * 3600
+_REFERENCE_CACHE: dict[str, tuple[str, float]] = {}
 
 
 @dataclass(frozen=True)
@@ -305,16 +309,16 @@ class GroundcoverClient:
         return {"success": True, "workspaces": workspaces, "total": len(workspaces)}
 
     def get_query_reference(self) -> dict[str, Any]:
-        """Fetch (and cache) the gcQL reference skill text."""
+        """Fetch (and cache, with a TTL) the gcQL reference skill text."""
         cached = _REFERENCE_CACHE.get(self.config.mcp_url)
-        if cached is not None:
-            return {"success": True, "reference": cached, "cached": True}
+        if cached is not None and (time.monotonic() - cached[1]) < _REFERENCE_TTL_SECONDS:
+            return {"success": True, "reference": cached[0], "cached": True}
         result = self.call_tool("get_gcql_reference", {})
         if not result.success:
             return {"success": False, "error": result.error, "reference": ""}
         reference = result.text or (json.dumps(result.data) if result.data is not None else "")
         if reference:
-            _REFERENCE_CACHE[self.config.mcp_url] = reference
+            _REFERENCE_CACHE[self.config.mcp_url] = (reference, time.monotonic())
         return {"success": True, "reference": reference, "cached": False}
 
     # -- verification ------------------------------------------------------
@@ -352,6 +356,11 @@ class GroundcoverClient:
             )
 
         workspaces = workspaces_result.get("workspaces", [])
+        if not workspaces:
+            return ProbeResult.failed(
+                "Connected to groundcover MCP, but no workspaces are accessible with this "
+                "token. Check that the service-account token is scoped to a tenant."
+            )
         problem = self._routing_problem(workspaces)
         if problem:
             return ProbeResult.failed(problem)
