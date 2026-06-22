@@ -756,6 +756,7 @@ __all__ = [
     "_verify_github",
     "_verify_google_docs",
     "_verify_grafana",
+    "_verify_groundcover",
     "_verify_honeycomb",
     "_verify_helm",
     "_verify_incident_io",
