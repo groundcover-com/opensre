@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 
 from app.agent.stages.investigate import ConnectedInvestigationAgent
+from app.integrations.config_models import RedisIntegrationConfig
 from app.pipeline.runners import astream_investigation
+from app.pipeline.stream_payloads import resolved_integrations_stream_payload
 
 
 def _agent_run_stub(
@@ -68,3 +71,27 @@ async def test_astream_investigation_emits_plan_actions_before_agent(
     plan_event = chain_end_events[0]
     output = plan_event.data["data"]["output"]
     assert output["planned_actions"] == ["query_logs"]
+
+
+def test_resolved_integrations_stream_payload_normalizes_multi_instance_configs() -> None:
+    redis_config = RedisIntegrationConfig(host="cache.prod", port=6380, db=2)
+    payload = resolved_integrations_stream_payload(
+        {
+            "redis": redis_config,
+            "_all_redis_instances": [
+                {
+                    "name": "primary",
+                    "tags": {"role": "primary"},
+                    "config": redis_config,
+                    "integration_id": "redis-primary",
+                }
+            ],
+            "_all": [{"service": "redis"}],
+        }
+    )
+
+    assert payload["redis"]["host"] == "cache.prod"
+    assert payload["_all_redis_instances"][0]["config"]["db"] == 2
+    assert isinstance(payload["_all_redis_instances"][0]["config"], dict)
+    assert "_all" not in payload
+    json.dumps({"resolved_integrations": payload})

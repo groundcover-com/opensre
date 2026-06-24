@@ -89,6 +89,7 @@ class OpenClawConfig(StrictConfigModel):
     headers: dict[str, str] = Field(default_factory=dict)
     timeout_seconds: float = Field(default=15.0, gt=0)
     integration_id: str = ""
+    connection_verified: bool = True
 
     @field_validator("url", mode="before")
     @classmethod
@@ -629,7 +630,7 @@ def validate_openclaw_config(config: OpenClawConfig) -> OpenClawValidationResult
 
 def classify(
     credentials: dict[str, Any], record_id: str
-) -> tuple[dict[str, Any] | None, str | None]:
+) -> tuple[OpenClawConfig | None, str | None]:
     try:
         cfg = build_openclaw_config(
             {
@@ -645,7 +646,5 @@ def classify(
         report_classify_failure(exc, logger=logger, integration="openclaw", record_id=record_id)
         return None, None
     if cfg.is_configured:
-        config_dict = cfg.model_dump()
-        config_dict["connection_verified"] = True
-        return config_dict, "openclaw"
+        return cfg, "openclaw"
     return None, None

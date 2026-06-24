@@ -11,6 +11,7 @@ from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
+from app.pipeline.stream_payloads import resolved_integrations_stream_payload
 from app.remote.stream import StreamEvent
 from app.state import AgentState, make_initial_state
 from app.types.config import NodeConfig
@@ -234,9 +235,7 @@ async def astream_investigation(
                     "resolve_integrations",
                     {
                         "output": {
-                            "resolved_integrations": {
-                                k: v for k, v in resolved.items() if k != "_all"
-                            }
+                            "resolved_integrations": resolved_integrations_stream_payload(resolved)
                         }
                     },
                 )
