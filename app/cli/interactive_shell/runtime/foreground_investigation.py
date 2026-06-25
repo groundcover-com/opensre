@@ -51,6 +51,21 @@ def run_foreground_investigation(
     root = final_state.get("root_cause")
     task.mark_completed(result=str(root) if root is not None else "")
     session.apply_investigation_result(final_state)
+
+    # Mirror the standalone CLI (run_investigation_cli_streaming): show the
+    # blocking RCA-accuracy feedback menu after the report. Pass console=None so
+    # the cursor-safe _run_select (per-line erase) is used instead of
+    # repl_choose_one, whose block-erase is unstable after Rich Live streaming.
+    from app.cli.interactive_shell.ui.feedback import prompt_investigation_feedback
+    from app.cli.interactive_shell.ui.key_reader import restore_stdin_terminal
+
+    # The explicit pre-call (kept identical to the CLI path) primes the terminal
+    # out of the streaming watcher's no-echo/raw mode *before* the feedback
+    # helper prints its root-cause context and header. prompt_investigation_feedback
+    # restores again in its own finally; this pre-call covers the output it emits
+    # ahead of _run_select's own restore, so it is not redundant with that teardown.
+    restore_stdin_terminal()
+    prompt_investigation_feedback(final_state)
     return final_state
 
 
