@@ -73,6 +73,7 @@ _EXCLUSIVE_STDIN_MENU_COMMANDS: frozenset[str] = frozenset(
         "/sessions",
         "/resume",
         "/new",
+        "/rca",
     }
 )
 _EXCLUSIVE_STDIN_SUBCOMMANDS: frozenset[tuple[str, str]] = frozenset(
@@ -84,6 +85,11 @@ _EXCLUSIVE_STDIN_SUBCOMMANDS: frozenset[tuple[str, str]] = frozenset(
         ("/integrations", "remove"),
         ("/mcp", "connect"),
         ("/mcp", "disconnect"),
+        ("/rca", "history"),
+        ("/rca", "list"),
+        ("/rca", "ls"),
+        ("/rca", "show"),
+        ("/rca", "save"),
     }
 )
 _WAIT_FOR_COMPLETION_COMMANDS: frozenset[str] = frozenset(

@@ -515,7 +515,12 @@ class ReplSession:
         self.hydrate_configured_integrations()
         self.warm_resolved_integrations()
 
-    def apply_investigation_result(self, state: dict[str, Any]) -> None:
+    def apply_investigation_result(
+        self,
+        state: dict[str, Any],
+        *,
+        trigger: str = "",
+    ) -> None:
         """Record a completed investigation result and reset follow-up context.
 
         Replaces the inline ``session.last_state = …`` +
@@ -524,9 +529,12 @@ class ReplSession:
         This prevents CLI-agent turns from an earlier interaction from bleeding
         into the follow-up grounding context of a new investigation.
         """
+        from cli.interactive_shell.sessions.store import SessionStore
+
         self.last_state = state
         self.follow_up_messages.clear()
         self.accumulate_from_state(state)
+        SessionStore.append_investigation_result(self.session_id, state, trigger=trigger)
 
     def clear(self, *, rotate_identity: bool = True) -> None:
         """Reset the session to a fresh state (used by /new and /resume)."""

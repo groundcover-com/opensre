@@ -170,6 +170,11 @@ _MCP_BY_COMMAND: dict[str, _SlashMcpFields] = {
         "Reprint the most recent investigation report from this session.",
         "User asks to show the last investigation result or report again",
     ),
+    "/rca": _mcp(
+        "Browse persisted RCA reports across sessions. Subcommands: history, show <id>, save <path>.",
+        "User asks for past RCA reports, investigation history, or to export a previous root-cause report",
+        anti_examples=("User asks for command history or up-arrow recall (use /history)",),
+    ),
     "/mcp": _mcp(
         "Manage connected MCP servers. Subcommands: list, connect, disconnect.",
         "User asks to list, connect, or disconnect MCP servers",

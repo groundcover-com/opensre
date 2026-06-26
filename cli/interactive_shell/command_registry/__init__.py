@@ -35,6 +35,7 @@ from cli.interactive_shell.command_registry.model import (
     switch_toolcall_model,
 )
 from cli.interactive_shell.command_registry.privacy_cmds import COMMANDS as PRIVACY_COMMANDS
+from cli.interactive_shell.command_registry.rca_cmds import COMMANDS as RCA_COMMANDS
 from cli.interactive_shell.command_registry.repl_data import (
     load_llm_settings,
     load_verified_integrations,
@@ -70,6 +71,7 @@ _MERGED_SEQUENCE = tuple(
         MODEL_COMMANDS,
         TOOLS_COMMANDS,
         INVESTIGATION_COMMANDS,
+        RCA_COMMANDS,
         TASK_COMMANDS,
         WATCH_COMMANDS,
         PRIVACY_COMMANDS,

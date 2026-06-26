@@ -53,6 +53,7 @@ def _raw_help_sections() -> list[HelpSection]:
     from cli.interactive_shell.command_registry.investigation import COMMANDS as INV_CMDS
     from cli.interactive_shell.command_registry.model import COMMANDS as MODEL_CMDS
     from cli.interactive_shell.command_registry.privacy_cmds import COMMANDS as PRIVACY_CMDS
+    from cli.interactive_shell.command_registry.rca_cmds import COMMANDS as RCA_CMDS
     from cli.interactive_shell.command_registry.session_cmds import COMMANDS as SESSION_CMDS
     from cli.interactive_shell.command_registry.settings_cmds import (
         COMMANDS as SETTINGS_CMDS,
@@ -74,7 +75,7 @@ def _raw_help_sections() -> list[HelpSection]:
             + list(DIAGNOSTICS_CMDS),
         ),
         ("Integrations, Models & Tools", list(INT_CMDS) + list(MODEL_CMDS) + list(TOOLS_CMDS)),
-        ("Investigation", list(INV_CMDS)),
+        ("Investigation", list(INV_CMDS) + list(RCA_CMDS)),
         ("Privacy", list(PRIVACY_CMDS)),
         ("Tasks", list(TASK_CMDS) + list(WATCH_CMDS)),
         ("Theme", list(THEME_CMDS)),
