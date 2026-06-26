@@ -21,15 +21,6 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.output import DummyOutput
 
 from cli.interactive_shell.command_registry import SLASH_COMMANDS, dispatch_slash
-from cli.interactive_shell.prompting import prompt_surface
-from cli.interactive_shell.prompting.prompt_surface import (
-    _SHIFT_ENTER_SEQUENCE,
-    ReplInputLexer,
-    ShellCompleter,
-    _build_prompt_key_bindings,
-    _build_prompt_style,
-    _tab_expand_or_menu,
-)
 from cli.interactive_shell.runtime import dispatch as loop_dispatch
 from cli.interactive_shell.runtime import execution as loop_execution
 from cli.interactive_shell.runtime import state as loop_state
@@ -39,8 +30,17 @@ from cli.interactive_shell.runtime.cpr_stdin import (
 )
 from cli.interactive_shell.runtime.session import ReplSession
 from cli.interactive_shell.runtime.streaming_console import StreamingConsole
+from cli.interactive_shell.ui import prompt_surface
+from cli.interactive_shell.ui.prompt_surface import (
+    _SHIFT_ENTER_SEQUENCE,
+    ReplInputLexer,
+    ShellCompleter,
+    _build_prompt_key_bindings,
+    _build_prompt_style,
+    _tab_expand_or_menu,
+)
 from cli.interactive_shell.ui.streaming import _CHARS_PER_TOKEN
-from cli.interactive_shell.ui.theme import (
+from platform.terminal.theme import (
     ANSI_RESET,
     PROMPT_ACCENT_ANSI,
     get_active_theme_name,
@@ -358,7 +358,7 @@ def test_build_prompt_style_tracks_active_theme() -> None:
 
 
 def test_completion_menu_current_item_uses_highlight_style() -> None:
-    from cli.interactive_shell.ui.theme import BG, HIGHLIGHT
+    from platform.terminal.theme import BG, HIGHLIGHT
 
     set_active_theme("green")
     style = _build_prompt_style()
@@ -377,7 +377,7 @@ def test_completion_menu_current_item_uses_highlight_style() -> None:
 
 
 def test_lazy_rich_style_split_tracks_active_theme() -> None:
-    from cli.interactive_shell.ui import theme as ui_theme
+    from platform.terminal import theme as ui_theme
 
     set_active_theme("green")
     assert bool(ui_theme.DIM) is True
@@ -393,7 +393,7 @@ def test_lazy_rich_style_split_tracks_active_theme() -> None:
 def test_lazy_rich_style_parses_as_real_rich_style() -> None:
     from rich.style import Style
 
-    from cli.interactive_shell.ui import theme as ui_theme
+    from platform.terminal import theme as ui_theme
 
     # Rich resolves a _LazyRichStyle via its underlying ``str`` value, so the
     # contract at call sites is to pass ``str(...)``. Verify that contract
@@ -445,7 +445,7 @@ def test_run_text_investigation_uses_background_launcher_when_mode_enabled(
 ) -> None:
     from rich.console import Console
 
-    from cli.interactive_shell.routing.handle_message_with_agent.orchestration.action_executor.investigation_runner import (
+    from cli.interactive_shell.harness.orchestration.action_executor.investigation_runner import (
         run_text_investigation,
     )
 
@@ -493,7 +493,7 @@ def test_dispatch_one_turn_reports_slash_dispatch_error(
         _boom,
     )
     monkeypatch.setattr(
-        "cli.interactive_shell.error_handling.exception_reporting.capture_exception",
+        "cli.interactive_shell.utils.error_handling.exception_reporting.capture_exception",
         lambda exc, **_kwargs: captured_errors.append(exc),
     )
     session = ReplSession()
@@ -786,7 +786,7 @@ class TestSpinnerState:
         assert spinner.inline_spinner_ansi() == ""
 
     def test_inline_spinner_uses_active_theme_highlight(self) -> None:
-        from cli.interactive_shell.ui.theme import set_active_theme
+        from platform.terminal.theme import set_active_theme
 
         set_active_theme("blue")
         spinner = loop_state.SpinnerState()
@@ -1529,7 +1529,7 @@ class TestExecutionAllowedRespectsDispatchCancelled:
     ) -> None:
         from rich.console import Console
 
-        from cli.interactive_shell.routing.handle_message_with_agent.orchestration.execution_policy import (
+        from cli.interactive_shell.harness.orchestration.execution_policy import (
             ExecutionPolicyResult,
             execution_allowed,
         )
@@ -1571,7 +1571,7 @@ class TestExecutionAllowedRespectsDispatchCancelled:
         """
         from rich.console import Console
 
-        from cli.interactive_shell.routing.handle_message_with_agent.orchestration.execution_policy import (
+        from cli.interactive_shell.harness.orchestration.execution_policy import (
             ExecutionPolicyResult,
             execution_allowed,
         )
@@ -1710,7 +1710,7 @@ class TestThemeCommand:
 
     def test_theme_picker_lists_all_registered_themes(self, monkeypatch) -> None:
         from cli.interactive_shell.command_registry import theme as theme_cmd
-        from cli.interactive_shell.ui.theme import list_theme_names
+        from platform.terminal.theme import list_theme_names
 
         monkeypatch.setattr(theme_cmd, "repl_tty_interactive", lambda: True)
         captured: dict[str, object] = {}
@@ -1756,7 +1756,7 @@ class TestThemeCommand:
 
 
 def test_refresh_prompt_theme_skips_invalidate_when_app_not_running() -> None:
-    from cli.interactive_shell.prompting.prompt_surface import refresh_prompt_theme
+    from cli.interactive_shell.ui.prompt_surface import refresh_prompt_theme
 
     invalidated: list[bool] = []
 

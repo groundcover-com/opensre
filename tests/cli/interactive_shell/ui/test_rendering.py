@@ -155,7 +155,7 @@ def test_repl_render_launch_poster_uses_crlf_on_tty(monkeypatch: pytest.MonkeyPa
     fake_stdout = _FakeStdout()
     monkeypatch.setattr("sys.stdout", fake_stdout)
 
-    from cli.interactive_shell.ui.theme import set_active_theme
+    from platform.terminal.theme import set_active_theme
 
     set_active_theme("blue")
     console = Console(
@@ -289,7 +289,7 @@ def test_render_mcp_table_renders_content(
 
 
 def test_print_planned_actions_formats_kinds() -> None:
-    from cli.interactive_shell.routing.handle_message_with_agent.orchestration.interaction_models import (
+    from cli.interactive_shell.harness.orchestration.interaction_models import (
         PlannedAction,
     )
 

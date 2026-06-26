@@ -31,10 +31,11 @@ from rich.rule import Rule
 from rich.text import Text
 
 import platform
-from cli.interactive_shell.data_store.context import is_json_output
-from cli.interactive_shell.error_handling.exit_codes import ERROR as EXIT_ERROR
-from cli.interactive_shell.error_handling.exit_codes import SUCCESS
-from cli.interactive_shell.ui.theme import (
+from config.version import get_version
+from platform.common.exit_codes import ERROR as EXIT_ERROR
+from platform.common.exit_codes import SUCCESS
+from platform.common.runtime_flags import is_json_output
+from platform.terminal.theme import (
     DIM,
     ERROR,
     GLYPH_ERROR,
@@ -45,7 +46,6 @@ from cli.interactive_shell.ui.theme import (
     TEXT,
     WARNING,
 )
-from config.version import get_version
 
 
 def _check(name: str, fn: Any) -> dict[str, str]:
@@ -122,7 +122,7 @@ def _check_integrations() -> tuple[bool, str]:
 
 def _check_version_freshness() -> tuple[bool, str]:
     current = get_version()
-    from cli.interactive_shell.data_store.update import (
+    from cli.lifecycle.update import (
         _fetch_latest_version,
         _is_update_available,
         development_install_doctor_version_detail,

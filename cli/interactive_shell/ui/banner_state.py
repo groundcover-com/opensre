@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from cli.interactive_shell.ui.theme import BRAND, DIM, HIGHLIGHT, SECONDARY, WARNING
+from platform.terminal.theme import BRAND, DIM, HIGHLIGHT, SECONDARY, WARNING
 
 # Display-name overrides for known integration service slugs.
 _SERVICE_DISPLAY_NAMES: dict[str, str] = {
@@ -77,7 +77,7 @@ def _load_integration_health() -> list[tuple[str, str]]:
 def _is_alert_listener_active() -> bool:
     """Return True if the alert listener is enabled in config. Never raises."""
     try:
-        from cli.config import ReplConfig
+        from config.repl_config import ReplConfig
 
         return ReplConfig.load(apply_active_theme=False).alert_listener_enabled
     except Exception:

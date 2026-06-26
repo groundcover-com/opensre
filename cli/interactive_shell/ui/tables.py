@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.text import Text
 
-from cli.interactive_shell.routing.handle_message_with_agent.orchestration.interaction_models import (
+from cli.interactive_shell.harness.orchestration.interaction_models import (
     PlannedAction,
 )
 from cli.interactive_shell.ui.provider import resolve_provider_models
@@ -23,7 +23,7 @@ from cli.interactive_shell.ui.rendering import (
     repl_print,
     repl_table,
 )
-from cli.interactive_shell.ui.theme import (
+from platform.terminal.theme import (
     BOLD_BRAND,
     DIM,
     ERROR,
@@ -32,7 +32,7 @@ from cli.interactive_shell.ui.theme import (
 )
 
 if TYPE_CHECKING:
-    from cli.config.tool_catalog import ToolCatalogEntry
+    from cli.interactive_shell.ui.tool_catalog import ToolCatalogEntry
 
 # MCP-type services are also rendered under `/mcp list` for focused MCP actions.
 MCP_INTEGRATION_SERVICES = frozenset({"github", "openclaw"})

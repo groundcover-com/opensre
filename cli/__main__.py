@@ -22,17 +22,11 @@ import click  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
 
 from cli.commands import register_commands  # noqa: E402
-from cli.interactive_shell.error_handling.exception_reporting import (  # noqa: E402
+from cli.interactive_shell.ui.layout import RichGroup, render_landing  # noqa: E402
+from cli.interactive_shell.utils.error_handling.exception_reporting import (  # noqa: E402
     report_exception,
     should_report_exception,
 )
-from cli.interactive_shell.ui.layout import RichGroup, render_landing  # noqa: E402
-from cli.interactive_shell.ui.prompt_support import (  # noqa: E402
-    handle_ctrl_c_press,
-    install_questionary_ctrl_c_double_exit,
-    install_questionary_escape_cancel,
-)
-from cli.interactive_shell.ui.theme import list_theme_names  # noqa: E402
 from config.version import get_version  # noqa: E402
 from platform.analytics.cli import build_cli_invoked_properties, capture_cli_invoked  # noqa: E402
 from platform.analytics.provider import (  # noqa: E402
@@ -40,7 +34,14 @@ from platform.analytics.provider import (  # noqa: E402
     capture_first_run_if_needed,
     shutdown_analytics,
 )
+from platform.common.errors import OpenSREError as _StructuredError  # noqa: E402
 from platform.observability.sentry_sdk import capture_exception, init_sentry  # noqa: E402
+from platform.terminal.prompt_support import (  # noqa: E402
+    handle_ctrl_c_press,
+    install_questionary_ctrl_c_double_exit,
+    install_questionary_escape_cancel,
+)
+from platform.terminal.theme import list_theme_names  # noqa: E402
 
 _CAPTURE_CLI_ANALYTICS = "capture_cli_analytics"
 _CLI_ANALYTICS_CAPTURED = "cli_analytics_captured"
@@ -177,10 +178,14 @@ def cli(
     ctx.obj["yes"] = yes
     ctx.obj["interactive"] = interactive
 
+    from cli.runtime_flags import sync_runtime_flags_from_click
+
+    sync_runtime_flags_from_click(ctx)
+
     if verbose or debug:
         os.environ["TRACER_VERBOSE"] = "1"
 
-    from cli.config import ReplConfig
+    from config.repl_config import ReplConfig
 
     _capture_accepted_cli_invocation(ctx)
 
@@ -282,6 +287,22 @@ def main(argv: list[str] | None = None) -> int:
         if _should_capture_cli_exception(exc):
             report_exception(exc, context="cli.main")
         exc.show()
+        return exc.exit_code
+    except _StructuredError as exc:
+        # A structured error raised by non-CLI code (tools/integrations) is not
+        # a ClickException, so render it here the same way the CLI subclass'
+        # show() does (clean panel, no traceback) and exit with its code.
+        from rich.console import Console
+
+        from platform.terminal.errors import render_error
+
+        hint: str | None = None
+        if exc.suggestion:
+            parts = [exc.suggestion]
+            if exc.docs_url:
+                parts.append(f"Docs: {exc.docs_url}")
+            hint = "  ".join(parts)
+        render_error(exc, console=Console(stderr=True, highlight=False), hint=hint)
         return exc.exit_code
     except click.exceptions.Exit as exc:
         return exc.exit_code

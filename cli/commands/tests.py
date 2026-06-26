@@ -7,8 +7,7 @@ from typing import Any
 
 import click
 
-from cli.interactive_shell.data_store.context import is_json_output, is_yes
-from cli.interactive_shell.error_handling.errors import OpenSREError
+from cli.interactive_shell.utils.error_handling.errors import OpenSREError
 from core.domain.types.upstream import (
     LogSignal,
     MetricSeries,
@@ -28,6 +27,7 @@ from platform.analytics.cli import (
     capture_tests_listed,
     capture_tests_picker_opened,
 )
+from platform.common.runtime_flags import is_json_output, is_yes
 
 _TEST_CATEGORIES: tuple[str, ...] = (
     "all",

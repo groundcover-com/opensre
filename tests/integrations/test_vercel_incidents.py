@@ -70,7 +70,8 @@ def test_cmd_vercel_incidents_json_outputs_incidents(monkeypatch, capsys) -> Non
         lambda **_kwargs: [_candidate()],
     )
     monkeypatch.setattr(
-        "cli.interactive_shell.data_store.context._root_obj", lambda: {"json": True}
+        "integrations.vercel_incidents.is_json_output",
+        lambda: True,
     )
 
     vercel_incidents.cmd_vercel_incidents(limit=5)
@@ -94,7 +95,8 @@ def test_cmd_vercel_incidents_exits_on_api_error(monkeypatch, capsys) -> None:
         ),
     )
     monkeypatch.setattr(
-        "cli.interactive_shell.data_store.context._root_obj", lambda: {"json": False}
+        "integrations.vercel_incidents.is_json_output",
+        lambda: False,
     )
     monkeypatch.setattr(
         vercel_incidents.questionary,
@@ -144,7 +146,8 @@ def test_cmd_vercel_incidents_scopes_to_selected_project(monkeypatch) -> None:
     answers: list[object] = ["proj_123", "_exit"]
     captured: dict[str, Any] = {}
     monkeypatch.setattr(
-        "cli.interactive_shell.data_store.context._root_obj", lambda: {"json": False}
+        "integrations.vercel_incidents.is_json_output",
+        lambda: False,
     )
     monkeypatch.setattr(
         vercel_incidents,
@@ -188,8 +191,7 @@ def test_incident_actions_can_execute_and_view_saved_rca(
         lambda *_args, **_kwargs: _Prompt(answers),
     )
     monkeypatch.setattr(
-        vercel_incidents,
-        "run_investigation_cli_streaming",
+        "integrations.vercel_incidents.run_investigation_payload",
         lambda **_kwargs: {
             "root_cause": "A broken import path shipped in the deployment.",
             "report": "The deployment failed during the build step.",

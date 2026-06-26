@@ -10,8 +10,7 @@ from typing import Any
 
 import questionary
 
-from cli.interactive_shell.data_store.context import is_json_output
-from cli.investigation import run_investigation_cli, run_investigation_cli_streaming
+from core.orchestration.entrypoints import run_investigation_payload
 from infra.deployment.remote.vercel_poller import (
     VercelInvestigationCandidate,
     VercelResolutionError,
@@ -19,6 +18,7 @@ from infra.deployment.remote.vercel_poller import (
     resolve_vercel_config,
 )
 from integrations.store import STORE_PATH
+from platform.common.runtime_flags import is_json_output
 from vendors.vercel.client import make_vercel_client
 
 _INCIDENT_CACHE_DIR: Path = STORE_PATH.parent / "investigations" / "vercel"
@@ -173,11 +173,7 @@ def _save_report(candidate: VercelInvestigationCandidate, result: dict[str, Any]
 def _execute_rca(candidate: VercelInvestigationCandidate) -> None:
     print()
     print(f"  Executing RCA for {candidate.pipeline_name} ({candidate.dedupe_key})...")
-    result = (
-        run_investigation_cli(raw_alert=candidate.raw_alert)
-        if is_json_output()
-        else run_investigation_cli_streaming(raw_alert=candidate.raw_alert)
-    )
+    result = run_investigation_payload(raw_alert=candidate.raw_alert)
     report_path = _save_report(candidate, result)
     if is_json_output():
         _json_echo(
