@@ -104,7 +104,7 @@ def test_is_context_length_overflow_matches_provider_messages(message: str, expe
 def test_plan_actions_with_llm_result_hands_off_on_prompt_overflow(overflow_message: str) -> None:
     # The planner is the sole tool selector. When the prompt is too long for the
     # planner LLM there is no regex fallback to guess an action, so the turn is
-    # handed off to the conversational assistant rather than mis-routed.
+    # handed off to the conversational assistant rather than mis-planned.
     message = "show connected integrations"
 
     def _raise_overflow(*_args: object, **_kwargs: object) -> str:
@@ -182,7 +182,7 @@ def test_call_llm_prefixes_fallback_provider_context(monkeypatch) -> None:
     from interactive_shell.harness.orchestration.llm_action_planner.llm_client import (  # noqa: E501
         _call_llm,
     )
-    from interactive_shell.runtime.session import ReplSession
+    from interactive_shell.runtime.core.session import ReplSession
 
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setattr(
@@ -207,7 +207,7 @@ def test_call_llm_prefixes_active_provider_context_without_fallback(monkeypatch)
     from interactive_shell.harness.orchestration.llm_action_planner.llm_client import (  # noqa: E501
         _call_llm,
     )
-    from interactive_shell.runtime.session import ReplSession
+    from interactive_shell.runtime.core.session import ReplSession
 
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setattr(

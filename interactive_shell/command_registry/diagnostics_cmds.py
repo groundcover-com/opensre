@@ -8,7 +8,7 @@ from rich.markup import escape
 from config.llm_reasoning_effort import display_reasoning_effort
 from interactive_shell.command_registry.types import SlashCommand
 from interactive_shell.runtime import ReplSession
-from interactive_shell.runtime.token_accounting import format_token_total
+from interactive_shell.runtime.core.token_accounting import format_token_total
 from interactive_shell.ui import (
     BOLD_BRAND,
     DIM,
@@ -48,7 +48,7 @@ def _cmd_status(session: ReplSession, console: Console, _args: list[str]) -> boo
     table.add_row("interactions", str(len(session.history)))
 
     if session.incoming_alerts:
-        from interactive_shell.ui.incoming_alerts import time_ago
+        from interactive_shell.ui.alerts import time_ago
 
         most_recent = session.incoming_alerts[-1]
         age_str = time_ago(most_recent.received_at)

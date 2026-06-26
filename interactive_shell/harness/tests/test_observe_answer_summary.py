@@ -18,7 +18,7 @@ from interactive_shell.harness.orchestration.agent_actions import (
 from interactive_shell.harness.pipeline import (
     handle_message_with_agent,
 )
-from interactive_shell.runtime.session import ReplSession
+from interactive_shell.runtime.core.session import ReplSession
 from interactive_shell.utils.telemetry.recorder import LlmRunInfo
 
 _OBSERVATION = "Integration status from `/integrations`:\n- sentry: missing (Not configured.)"
@@ -26,10 +26,6 @@ _OBSERVATION = "Integration status from `/integrations`:\n- sentry: missing (Not
 
 def _console() -> Console:
     return Console(file=io.StringIO(), force_terminal=False, highlight=False)
-
-
-def _never_dispatch(*_args: object, **_kwargs: object) -> bool:  # pragma: no cover - guard
-    raise AssertionError("deterministic dispatch should not run for a free-text question")
 
 
 def test_discovery_output_is_summarized_into_a_direct_answer() -> None:
@@ -60,7 +56,9 @@ def test_discovery_output_is_summarized_into_a_direct_answer() -> None:
         confirm_fn=None,
         is_tty=None,
         tool_observation: str | None = None,
+        tool_observation_on_screen: bool = True,
     ) -> LlmRunInfo:
+        _ = text, session, console, confirm_fn, is_tty, tool_observation_on_screen
         observed.append(tool_observation)
         return LlmRunInfo(response_text="No — Sentry is not configured.")
 
@@ -70,10 +68,8 @@ def test_discovery_output_is_summarized_into_a_direct_answer() -> None:
         session,
         _console(),
         recorder=None,
-        on_exit=lambda: None,
         execute_actions=fake_execute,
         answer_agent=fake_answer,
-        dispatch_command=_never_dispatch,
     )
 
     assert observed == [_OBSERVATION]
@@ -111,10 +107,8 @@ def test_no_observation_keeps_silent_handled_turn() -> None:
         session,
         _console(),
         recorder=None,
-        on_exit=lambda: None,
         execute_actions=fake_execute,
         answer_agent=fake_answer,
-        dispatch_command=_never_dispatch,
     )
 
     assert answer_calls == []
@@ -152,10 +146,8 @@ def test_failed_discovery_is_not_summarized() -> None:
         session,
         _console(),
         recorder=None,
-        on_exit=lambda: None,
         execute_actions=fake_execute,
         answer_agent=fake_answer,
-        dispatch_command=_never_dispatch,
     )
 
     assert answer_calls == []
@@ -194,10 +186,8 @@ def test_observation_is_reset_each_turn() -> None:
         session,
         _console(),
         recorder=None,
-        on_exit=lambda: None,
         execute_actions=fake_execute,
         answer_agent=fake_answer,
-        dispatch_command=_never_dispatch,
     )
 
     assert answer_calls == []

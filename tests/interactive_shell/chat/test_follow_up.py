@@ -14,7 +14,7 @@ from interactive_shell.chat.follow_up import (
     _summarize_last_state,
     answer_follow_up,
 )
-from interactive_shell.runtime.session import ReplSession
+from interactive_shell.runtime.core.session import ReplSession
 
 
 class _StreamingClient:
@@ -92,7 +92,7 @@ class TestSummarizeLastState:
 class TestAnswerFollowUpMarkupSafety:
     """Regression: LLM output with bracket sequences (e.g. [OOMKilled]) was
     being silently truncated by Rich's markup parser. The streaming renderer
-    routes text through Markdown so brackets in plain prose survive."""
+    sends text through Markdown so brackets in plain prose survive."""
 
     def _run_with_response(self, monkeypatch: object, response_text: str) -> str:
         monkeypatch.setattr(  # type: ignore[attr-defined]

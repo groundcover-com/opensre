@@ -4,12 +4,11 @@ import io
 
 from rich.console import Console
 
-from interactive_shell.harness.domain.types import RouteDecision, RouteKind
 from interactive_shell.harness.orchestration.agent_actions import (
     TerminalActionExecutionResult,
 )
-from interactive_shell.runtime import execution
-from interactive_shell.runtime.session import ReplSession
+from interactive_shell.harness.pipeline import handle_message_with_agent
+from interactive_shell.runtime.core.session import ReplSession
 from interactive_shell.utils.telemetry import LlmRunInfo
 
 
@@ -29,45 +28,34 @@ def _console() -> Console:
     return Console(file=io.StringIO(), force_terminal=False, highlight=False)
 
 
-def test_execute_routed_turn_cli_agent_empty_response_prints_deterministic_fallback(
-    monkeypatch,
-) -> None:
+def test_handle_message_with_agent_cli_agent_empty_response_is_recorded_empty() -> None:
     recorder = _FakeRecorder()
-    monkeypatch.setattr(execution.PromptRecorder, "start", lambda **_kwargs: recorder)
-    monkeypatch.setattr(
-        execution,
-        "execute_cli_actions",
-        lambda *_args, **_kwargs: TerminalActionExecutionResult(
+
+    def fake_execute(*_args: object, **_kwargs: object) -> TerminalActionExecutionResult:
+        return TerminalActionExecutionResult(
             planned_count=0,
             executed_count=0,
             executed_success_count=0,
             has_unhandled_clause=False,
             handled=False,
-        ),
-    )
-    monkeypatch.setattr(
-        execution,
-        "answer_cli_agent",
-        lambda *_args, **_kwargs: LlmRunInfo(response_text=""),
-    )
+        )
+
+    def fake_answer(*_args: object, **_kwargs: object) -> LlmRunInfo:
+        return LlmRunInfo(response_text="")
 
     session = ReplSession()
-    session.configured_integrations_known = True
-    session.configured_integrations = ()
-    decision = RouteDecision(RouteKind.HANDLE_MESSAGE_WITH_AGENT, 0.9, ())
     output = io.StringIO()
-    execution.execute_routed_turn(
+    handle_message_with_agent(
         "show datadog integration details",
         session,
         Console(file=output, force_terminal=False, highlight=False),
-        on_exit=lambda: None,
-        decision=decision,
+        recorder=recorder,
+        confirm_fn=None,
+        is_tty=None,
+        execute_actions=fake_execute,
+        answer_agent=fake_answer,
     )
 
-    rendered = output.getvalue().lower()
-    assert "datadog integration details" in rendered
-    assert "integrations are configured" in rendered
-    assert "investigate" in rendered
-    assert recorder.responses
-    assert "datadog integration details" in recorder.responses[0].lower()
+    assert output.getvalue() == ""
+    assert recorder.responses == [""]
     assert session.last_assistant_intent == "cli_agent_fallback"

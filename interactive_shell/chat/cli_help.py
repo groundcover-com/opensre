@@ -1,7 +1,7 @@
 """Documentation-aware procedural answers for the OpenSRE interactive shell.
 
-When the router classifies an input as a procedural / how-to question we land
-here. We retrieve the most relevant pages from the project ``docs/`` directory
+When the planner hands off a procedural / how-to question, this module retrieves
+the most relevant pages from the project ``docs/`` directory
 and combine them with the CLI ``--help`` reference so the LLM answers from
 maintained documentation rather than model memory.
 
@@ -27,7 +27,7 @@ from interactive_shell.chat.prompt_rules import (
     INTERACTIVE_SHELL_TERMINOLOGY_RULE,
 )
 from interactive_shell.runtime import ReplSession
-from interactive_shell.runtime.token_accounting import build_llm_run_info
+from interactive_shell.runtime.core.token_accounting import build_llm_run_info
 from interactive_shell.ui import DIM, ERROR, STREAM_LABEL_ASSISTANT, stream_to_console
 from interactive_shell.utils.error_handling.exception_reporting import report_exception
 from interactive_shell.utils.telemetry import LlmRunInfo
@@ -91,10 +91,10 @@ def answer_cli_help(
     the CLI reference, and asks the reasoning model to answer strictly from
     the assembled grounding. Behaves as a no-op for the session's action
     history (stateless across turns) so it never interferes with follow-up
-    routing on a prior investigation.
+    handling on a prior investigation.
 
     ``session`` is accepted for API symmetry with :func:`answer_cli_agent` and
-    input routing; this path records estimated token usage on the session.
+    input handling; this path records estimated token usage on the session.
     """
     try:
         from core.runtime.llm.llm_client import get_llm_for_reasoning

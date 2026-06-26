@@ -37,7 +37,7 @@ from interactive_shell.harness.orchestration.interaction_models import (
 from interactive_shell.harness.orchestration.llm_action_planner import (
     LlmActionPlanResult,
 )
-from interactive_shell.runtime.session import ReplSession
+from interactive_shell.runtime.core.session import ReplSession
 from platform.common.task_types import TaskKind, TaskStatus
 
 _PLANNER_RESULT_PATCH = (
@@ -953,7 +953,7 @@ def test_execute_cli_actions_cd_preserves_windows_paths(monkeypatch: object) -> 
     ]
 
 
-def test_execute_cli_actions_cd_routes_case_insensitively(monkeypatch: object) -> None:
+def test_execute_cli_actions_cd_dispatches_case_insensitively(monkeypatch: object) -> None:
     changed_directories: list[Path] = []
 
     def _fake_chdir(target: Path) -> None:
@@ -1130,14 +1130,14 @@ def test_execute_cli_actions_runs_passthrough_with_shell_true(monkeypatch: objec
     assert "ok" in output
 
 
-def test_execute_cli_actions_routes_bang_cd_through_builtin(monkeypatch: object) -> None:
+def test_execute_cli_actions_dispatches_bang_cd_through_builtin(monkeypatch: object) -> None:
     dirs: list[Path] = []
 
     def _fake_chdir(target: Path) -> None:
         dirs.append(target)
 
     def _boom(*_args: object, **_kwargs: object) -> None:  # pragma: no cover
-        raise AssertionError("subprocess.run should not be used for !cd builtin routing")
+        raise AssertionError("subprocess.run should not be used for !cd builtin execution")
 
     monkeypatch.setattr(action_executor.os, "chdir", _fake_chdir)
     monkeypatch.setattr(shell_execution.subprocess, "run", _boom)
@@ -1153,12 +1153,12 @@ def test_execute_cli_actions_routes_bang_cd_through_builtin(monkeypatch: object)
     assert "explicit shell passthrough enabled" not in captured
 
 
-def test_execute_cli_actions_routes_bang_pwd_through_builtin(monkeypatch: object) -> None:
+def test_execute_cli_actions_dispatches_bang_pwd_through_builtin(monkeypatch: object) -> None:
     def _fake_cwd(_: type[Path]) -> PurePosixPath:
         return PurePosixPath("/shown")
 
     def _boom(*_args: object, **_kwargs: object) -> None:  # pragma: no cover
-        raise AssertionError("subprocess.run should not be used for !pwd builtin routing")
+        raise AssertionError("subprocess.run should not be used for !pwd builtin execution")
 
     monkeypatch.setattr(action_executor.Path, "cwd", classmethod(_fake_cwd))
     monkeypatch.setattr(shell_execution.subprocess, "run", _boom)
@@ -1360,21 +1360,17 @@ def test_execute_cli_actions_executes_matched_clause_ignoring_unhandled(
     assert captured_executed == [(1, 1, 1)]
 
 
-def test_execute_cli_actions_bang_prefix_routes_to_shell_bypassing_llm(
+def test_execute_cli_actions_bang_prefix_runs_only_after_llm_plans_shell(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """!cmd prefix must be routed deterministically to shell execution without calling
-    the LLM planner.  Regression: bare `!cmd` (and multiline `!cmd\\n   args`) was
-    passed to the LLM which misidentified it as a pasted snippet and returned
-    assistant_handoff instead of shell_run.
-    """
+    """Bare !cmd input still goes through the LLM planner before shell execution."""
     llm_called: list[str] = []
 
-    def _fail_if_called(message: str, *, session: object = None) -> None:  # pragma: no cover
+    def _planner(message: str, *, session: object = None) -> LlmActionPlanResult:  # noqa: ARG001
         llm_called.append(message)
-        raise AssertionError("LLM planner must not be called for !cmd input")
+        return _llm_plan_result([_action("shell", "!curl wttr.in/London")])
 
-    monkeypatch.setattr(_PLANNER_RESULT_PATCH, _fail_if_called)
+    monkeypatch.setattr(_PLANNER_RESULT_PATCH, _planner)
 
     calls: list[tuple[str, dict[str, object]]] = []
 
@@ -1391,7 +1387,7 @@ def test_execute_cli_actions_bang_prefix_routes_to_shell_bypassing_llm(
     handled = agent_actions.execute_cli_actions("!curl\n      wttr.in/London", session, console)
 
     assert handled.handled is True
-    assert llm_called == [], "LLM planner must not have been invoked for !cmd input"
+    assert llm_called == ["!curl\n      wttr.in/London"]
     assert session.history[-1] == {"type": "shell", "text": "!curl wttr.in/London", "ok": True}
     # The executor strips `!` and runs with shell=True.
     assert calls[0][0] == "curl wttr.in/London"
@@ -1399,10 +1395,18 @@ def test_execute_cli_actions_bang_prefix_routes_to_shell_bypassing_llm(
     assert "explicit shell passthrough enabled" in buf.getvalue()
 
 
-def test_execute_cli_actions_bang_prefix_single_line_routes_to_shell(
+def test_execute_cli_actions_bang_prefix_single_line_dispatches_to_shell(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Single-line !cmd routes to shell execution without any LLM involvement."""
+    """Single-line !cmd shell execution is planner-owned, not a deterministic bypass."""
+    llm_called: list[str] = []
+
+    def _planner(message: str, *, session: object = None) -> LlmActionPlanResult:  # noqa: ARG001
+        llm_called.append(message)
+        return _llm_plan_result([_action("shell", "!echo hello world")])
+
+    monkeypatch.setattr(_PLANNER_RESULT_PATCH, _planner)
+
     calls: list[tuple[str, dict[str, object]]] = []
 
     def _fake_run(command: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -1417,6 +1421,7 @@ def test_execute_cli_actions_bang_prefix_single_line_routes_to_shell(
     handled = agent_actions.execute_cli_actions("!echo hello world", session, console)
 
     assert handled.handled is True
+    assert llm_called == ["!echo hello world"]
     assert session.history[-1] == {"type": "shell", "text": "!echo hello world", "ok": True}
     assert calls[0][0] == "echo hello world"
     assert calls[0][1]["shell"] is True

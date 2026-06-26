@@ -1,4 +1,4 @@
-"""OpenSRE CLI command runner — route subcommands to foreground or background."""
+"""OpenSRE CLI command runner: send subcommands to foreground or background."""
 
 from __future__ import annotations
 
@@ -32,10 +32,10 @@ _OPENSRE_BLOCKED_SUBCOMMANDS: frozenset[str] = frozenset({"agent"})
 # step prompts.
 #
 # The *slash-command* paths (e.g. ``/onboard``, ``/integrations setup``)
-# are safe to run from the REPL because ``dispatch.py`` lists them in
-# ``_WAIT_FOR_COMPLETION_COMMANDS`` / ``_EXCLUSIVE_STDIN_SUBCOMMANDS``,
-# which pauses the prompt_toolkit Application before the handler runs and
-# gives the wizard subprocess exclusive stdin.
+# are safe to run from the REPL because ``runtime.utils.input_policy`` treats
+# them as exclusive-stdin commands, which pauses the prompt_toolkit
+# Application before the handler runs and gives the wizard subprocess
+# exclusive stdin.
 #
 # The *LLM-classified* path (``cli_exec`` tool with payload ``"onboard"``)
 # does NOT have that guarantee — the main loop may already be awaiting the
@@ -330,7 +330,7 @@ def run_opensre_cli_command_result(
     handed-off/executed states without overloading ``bool``.
 
     ``confirm_fn`` is forwarded to :func:`execution_allowed` so the
-    interactive REPL can route mid-dispatch ``Proceed? [y/N]`` prompts
+    interactive REPL can handle mid-dispatch ``Proceed? [y/N]`` prompts
     through its active prompt_toolkit input — the stdlib ``input()``
     deadlocks against the running ``prompt_async``.
     """

@@ -27,8 +27,6 @@ from interactive_shell.harness.orchestration.interaction_models import (
 from interactive_shell.harness.orchestration.llm_action_planner import (
     plan_actions_with_llm,
 )
-from interactive_shell.harness.router import route_input
-from interactive_shell.runtime.session import ReplSession
 
 PROMPT_TURN_CONTRACTS_DATASET = Path(__file__).resolve().parents[1] / "prompt_turn_contracts.yml"
 
@@ -78,7 +76,7 @@ def _load_live_cases() -> list[PlannerLiveCase]:
             {
                 "id": str(row["id"]),
                 "input": str(row["input"]),
-                "expected_kind": str(row["expected_route_kind"]),
+                "expected_kind": str(row["expected_turn_kind"]),
                 "expected_actions": [
                     {"kind": str(action["kind"]), "content": str(action["content"])}
                     for action in raw_actions
@@ -213,7 +211,6 @@ def test_live_llm_planner_matches_prompt_contract(
     case: PlannerLiveCase,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    assert route_input(case["input"], ReplSession()).route_kind.value == case["expected_kind"]
     expected = _normalize_for_assertion(case["expected_actions"])
 
     last_actual: list[ExpectedAction] | None = None

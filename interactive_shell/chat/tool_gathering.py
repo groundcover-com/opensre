@@ -11,8 +11,7 @@ loop (:func:`core.runtime.run_tool_calling_loop`) over the available
 Design notes:
 
 * Tools are read-only data fetches, so calls run autonomously (no per-call
-  confirmation) exactly like the investigation agent — see the routing decision
-  recorded for this feature.
+  confirmation) exactly like the investigation agent.
 * When no integrations are configured (no tools available), gathering is a fast
   no-op and the normal text-only assistant path runs unchanged.
 * Integration resolution is cached on the session so repeated turns don't
@@ -34,7 +33,7 @@ from interactive_shell.harness.state.conversation_history import (
     NO_HISTORY_PLACEHOLDER,
     format_recent_conversation,
 )
-from interactive_shell.runtime.session import ReplSession
+from interactive_shell.runtime.core.session import ReplSession
 from interactive_shell.ui import DIM
 from interactive_shell.ui.output.tool_details import tool_short_label, tool_source_label
 from interactive_shell.utils.error_handling.exception_reporting import report_exception

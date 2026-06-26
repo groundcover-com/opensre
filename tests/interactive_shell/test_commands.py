@@ -19,9 +19,9 @@ from interactive_shell.command_registry.investigation import (
     _validate_save_args,
 )
 from interactive_shell.command_registry.tasks_cmds import _validate_cancel_args
-from interactive_shell.runtime.background import BackgroundInvestigationRecord
-from interactive_shell.runtime.session import ReplSession
-from interactive_shell.ui.tool_catalog import ToolCatalogEntry
+from interactive_shell.runtime.background.models import BackgroundInvestigationRecord
+from interactive_shell.runtime.core.session import ReplSession
+from interactive_shell.ui.tables.tool_catalog import ToolCatalogEntry
 from platform.common.task_types import TaskKind, TaskStatus
 
 
@@ -2171,7 +2171,7 @@ class TestRunCliCommand:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """``capture_output=True`` must route child stdout through ``console`` even
+        """``capture_output=True`` must send child stdout through ``console`` even
         when no timeout is set, so non-interactive slash commands like ``/tests
         list`` do not lose their output to the parent stdout FD.
         """
@@ -2270,7 +2270,7 @@ class TestCliDelegatedCommands:
     def test_slash_onboard_delegates_to_run_cli_command(self, monkeypatch: object) -> None:
         """``/onboard`` must delegate to ``run_cli_command`` so the wizard runs
         with inherited stdin. The REPL loop guarantees exclusive stdin for
-        ``/onboard`` via ``_WAIT_FOR_COMPLETION_COMMANDS`` in dispatch.py, so
+        ``/onboard`` via ``runtime.utils.input_policy``, so
         the wizard's prompt_toolkit Application no longer conflicts with the
         shell's active one.
         """

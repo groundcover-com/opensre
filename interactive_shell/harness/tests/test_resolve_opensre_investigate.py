@@ -6,8 +6,6 @@ from interactive_shell.harness.orchestration.command_dispatch import (
     deterministic_command_text,
     opensre_investigate_slash_text,
 )
-from interactive_shell.harness.router import RouteKind, route_input
-from interactive_shell.runtime.session import ReplSession
 
 
 def test_opensre_investigate_slash_text_maps_input_flag() -> None:
@@ -34,14 +32,6 @@ def test_opensre_investigate_without_path_defaults_to_demo_alert() -> None:
 
 
 def test_deterministic_command_text_maps_opensre_investigate() -> None:
-    assert (
-        deterministic_command_text("opensre investigate -i alert.json") == "/investigate alert.json"
-    )
-
-
-def test_route_input_keeps_opensre_investigate_on_agent_fast_path() -> None:
-    decision = route_input("opensre investigate -i alert.json", ReplSession())
-    assert decision.route_kind is RouteKind.HANDLE_MESSAGE_WITH_AGENT
     assert (
         deterministic_command_text("opensre investigate -i alert.json") == "/investigate alert.json"
     )

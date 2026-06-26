@@ -4,15 +4,23 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 from rich.console import Console
 
+from config.config import (
+    DEFAULT_LLM_RESOLUTION_FALLBACK_PROVIDERS,
+    get_configured_llm_provider,
+    get_llm_provider_api_key_env,
+    resolve_llm_settings_verbose,
+)
 from interactive_shell.command_registry import dispatch_slash
 from interactive_shell.harness.state.sessions.store import SessionStore
-from interactive_shell.runtime.session import ReplSession
+from interactive_shell.runtime.core.session import ReplSession
 
 
 def _capture() -> tuple[Console, io.StringIO]:
@@ -78,6 +86,37 @@ def isolated_sessions(tmp_path: Path) -> Path:
 
 def _open_current(session: ReplSession) -> None:
     SessionStore.open_session(session)
+
+
+def _require_live_llm_for_repl_planner() -> None:
+    explicit_pin = os.environ.get("LLM_PROVIDER", "").strip().lower()
+    resolution = None
+    try:
+        resolution = resolve_llm_settings_verbose()
+    except ValidationError as exc:
+        provider = get_configured_llm_provider()
+        env_var = get_llm_provider_api_key_env(provider)
+        msg = exc.errors()[0].get("msg", str(exc)) if exc.errors() else str(exc)
+        hint = f" configured provider={provider!r}"
+        if env_var is not None:
+            hint += f", required key={env_var}"
+        hint += f", fallback providers={DEFAULT_LLM_RESOLUTION_FALLBACK_PROVIDERS!r}"
+        pytest.skip(f"Skipping live REPL planner smoke; missing LLM configuration:{hint}. {msg}")
+
+    if resolution is None:
+        pytest.skip("Skipping live REPL planner smoke; LLM configuration was not resolved.")
+
+    if explicit_pin and resolution.fell_back:
+        pytest.skip(
+            f"Skipping live REPL planner smoke; LLM_PROVIDER={explicit_pin!r} fell back to "
+            f"{resolution.resolved_provider!r}."
+        )
+
+    env_var = get_llm_provider_api_key_env(resolution.resolved_provider)
+    if env_var is not None and not os.environ.get(env_var):
+        pytest.skip(
+            f"Skipping live REPL planner smoke; {env_var} is not exported to the child REPL."
+        )
 
 
 class TestResumeScenarioMatrix:
@@ -288,10 +327,13 @@ class TestResumeScenarioMatrix:
 
 
 @pytest.mark.integration
+@pytest.mark.live_llm
 class TestResumeLiveRepl:
-    """Live REPL smoke test via ReplDriver with isolated HOME."""
+    """Live REPL smoke test via ReplDriver with isolated HOME and real planner."""
 
     def test_live_resume_round_trip(self, tmp_path: Path) -> None:
+        _require_live_llm_for_repl_planner()
+
         from tests.utils.repl_driver import ReplDriver
 
         home = tmp_path / "home"
@@ -306,17 +348,17 @@ class TestResumeLiveRepl:
                 repl.send("", wait=3.0)
                 repl.reset_output()
 
-            repl.send("/sessions", wait=3.0)
-            assert repl.contains("live9999") or repl.contains("live redis")
+            repl.send("/sessions", wait=1.0)
+            assert repl.wait_until_contains("live9999", "live redis", timeout=60.0)
 
             repl.reset_output()
-            repl.send(f"/resume {target_id[:8]}", wait=4.0)
-            assert repl.contains("resumed session")
-            assert repl.contains("live redis investigation")
+            repl.send(f"/resume {target_id[:8]}", wait=1.0)
+            assert repl.wait_until_contains("resumed session", timeout=60.0)
+            assert repl.wait_until_contains("live redis investigation", timeout=10.0)
 
             repl.reset_output()
-            repl.send("/status", wait=2.0)
-            assert repl.contains("interactions")
+            repl.send("/status", wait=1.0)
+            assert repl.wait_until_contains("interactions", timeout=60.0)
 
         target_path = sessions_dir / f"{target_id}.jsonl"
         assert target_path.exists()

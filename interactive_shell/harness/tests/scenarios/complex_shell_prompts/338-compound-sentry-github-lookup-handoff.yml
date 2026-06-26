@@ -32,7 +32,7 @@ notes:
   into investigation_start. Contrast with 314, where "crashing on Windows" names a FAILURE across the same
   Sentry/GitHub/PostHog set and DOES dispatch an investigation.'
 - 'Gather fan-out, auth-independent: both Sentry and GitHub are connected with shaped (non-live) fixture
-  configs that satisfy each tool''s is_available check, so the gather loop can route to either integration
+  configs that satisfy each tool''s is_available check, so the gather loop can select either integration
   on the live planner''s choice. call_any over search_sentry_issues/search_github_issues asserts the loop
   engaged AT LEAST ONE integration tool. call_any (not valid_data) is intentional: the fixture tokens are
   fake and 401 against the live endpoints, but "was called" is the deterministic, credential-free proof that
@@ -41,8 +41,8 @@ notes:
 - 'Cross-integration negative control: PostHog and Datadog are NOT configured, so list_posthog_tools and
   query_datadog_all/query_datadog_logs must never fire. Asserting them not_called catches a gather loop that
   reaches for an unconfigured integration.'
-route:
-  expected_kind: handle_message_with_agent
+turn:
+  expected_kind: agent
   expected_command_text: null
 policy:
   executes_terminal_action: false

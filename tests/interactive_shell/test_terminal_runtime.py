@@ -21,25 +21,29 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.output import DummyOutput
 
 from interactive_shell.command_registry import SLASH_COMMANDS, dispatch_slash
-from interactive_shell.runtime import dispatch as loop_dispatch
-from interactive_shell.runtime import execution as loop_execution
-from interactive_shell.runtime import state as loop_state
-from interactive_shell.runtime.cpr_stdin import (
+from interactive_shell.runtime import controller as controller_runtime
+from interactive_shell.runtime.core import state as loop_state
+from interactive_shell.runtime.core import turn_detection as loop_turn_detection
+from interactive_shell.runtime.core.session import ReplSession
+from interactive_shell.runtime.startup import initial_input as startup_initial_input
+from interactive_shell.ui import input_prompt
+from interactive_shell.ui.components.cpr_stdin import (
     strip_cpr_escape_sequences,
     strip_cpr_sequences,
 )
-from interactive_shell.runtime.session import ReplSession
-from interactive_shell.runtime.streaming_console import StreamingConsole
-from interactive_shell.ui import prompt_surface
-from interactive_shell.ui.prompt_surface import (
+from interactive_shell.ui.input_prompt import completion as prompt_completion
+from interactive_shell.ui.input_prompt.completion import ShellCompleter
+from interactive_shell.ui.input_prompt.key_bindings import (
     _SHIFT_ENTER_SEQUENCE,
-    ReplInputLexer,
-    ShellCompleter,
     _build_prompt_key_bindings,
-    _build_prompt_style,
     _tab_expand_or_menu,
+    build_cancel_key_bindings,
 )
+from interactive_shell.ui.input_prompt.lexer import ReplInputLexer
+from interactive_shell.ui.input_prompt.rendering import _prompt_message
+from interactive_shell.ui.input_prompt.style import _build_prompt_style
 from interactive_shell.ui.streaming import _CHARS_PER_TOKEN
+from interactive_shell.ui.streaming.console import StreamingConsole
 from platform.terminal.theme import (
     ANSI_RESET,
     PROMPT_ACCENT_ANSI,
@@ -134,7 +138,7 @@ def test_build_prompt_session_uses_persistent_history(
     monkeypatch.setattr(const_module, "OPENSRE_HOME_DIR", tmp_path)
 
     with create_app_session(input=DummyInput(), output=DummyOutput()):
-        prompt = prompt_surface._build_prompt_session()
+        prompt = input_prompt._build_prompt_session()
 
     assert isinstance(prompt.history, FileHistory)
     assert prompt.history.filename == str(tmp_path / "interactive_history")
@@ -156,7 +160,7 @@ def test_build_prompt_session_falls_back_to_memory_history(
     monkeypatch.setattr(const_module, "OPENSRE_HOME_DIR", blocked_home)
 
     with create_app_session(input=DummyInput(), output=DummyOutput()):
-        prompt = prompt_surface._build_prompt_session()
+        prompt = input_prompt._build_prompt_session()
 
     assert isinstance(prompt.history, InMemoryHistory)
 
@@ -170,13 +174,13 @@ def test_repl_session_prompt_history_backend_matches_prompt_toolkit_history(
     monkeypatch.setattr(const_module, "OPENSRE_HOME_DIR", tmp_path)
     with create_app_session(input=DummyInput(), output=DummyOutput()):
         session = ReplSession()
-        prompt = prompt_surface._build_prompt_session()
+        prompt = input_prompt._build_prompt_session()
         session.prompt_history_backend = prompt.history
     assert session.prompt_history_backend is prompt.history
 
 
 def test_prompt_message_uses_accent_glyph() -> None:
-    rendered = prompt_surface._prompt_message(ReplSession()).value
+    rendered = _prompt_message(ReplSession()).value
 
     assert PROMPT_ACCENT_ANSI in rendered
     assert "❯" in rendered
@@ -196,7 +200,7 @@ def test_shift_enter_inserts_newline_before_submit(
             create_pipe_input() as pipe_input,
             create_app_session(input=pipe_input, output=DummyOutput()),
         ):
-            prompt = prompt_surface._build_prompt_session()
+            prompt = input_prompt._build_prompt_session()
             task = asyncio.create_task(prompt.prompt_async(""))
             pipe_input.send_bytes(b"first line")
             pipe_input.send_bytes(_SHIFT_ENTER_SEQUENCE.encode())
@@ -248,7 +252,7 @@ def test_shell_completer_suggests_subcommands_for_tools() -> None:
 def test_shell_completer_hides_inline_picker_autocomplete_in_tty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(prompt_surface, "repl_tty_interactive", lambda: True)
+    monkeypatch.setattr(prompt_completion, "repl_tty_interactive", lambda: True)
 
     completions = list(
         ShellCompleter().get_completions(
@@ -263,7 +267,7 @@ def test_shell_completer_hides_inline_picker_autocomplete_in_tty(
 def test_shell_completer_keeps_inline_picker_autocomplete_when_arg_started(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(prompt_surface, "repl_tty_interactive", lambda: True)
+    monkeypatch.setattr(prompt_completion, "repl_tty_interactive", lambda: True)
 
     completions = list(
         ShellCompleter().get_completions(
@@ -347,7 +351,6 @@ def test_completion_includes_tab_navigation() -> None:
 
 
 def test_build_prompt_style_tracks_active_theme() -> None:
-
     set_active_theme("amber")
     amber_attrs = _build_prompt_style().get_attrs_for_style_str("class:prompt-frame-line")
     set_active_theme("teal")
@@ -463,7 +466,7 @@ def test_run_text_investigation_uses_background_launcher_when_mode_enabled(
         return "bg123"
 
     monkeypatch.setattr(
-        "interactive_shell.runtime.background_runner.start_background_text_investigation",
+        "interactive_shell.runtime.background.runner.start_background_text_investigation",
         _fake_start_background_text_investigation,
     )
 
@@ -477,107 +480,19 @@ def test_run_text_investigation_uses_background_launcher_when_mode_enabled(
     assert session.task_registry.list_recent(10) == []
 
 
-def test_dispatch_one_turn_reports_slash_dispatch_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from rich.console import Console
-
-    captured_errors: list[BaseException] = []
-    exit_calls: list[None] = []
-
-    def _boom(*_args: object, **_kwargs: object) -> bool:
-        raise RuntimeError("handler crashed")
-
-    monkeypatch.setattr(
-        "interactive_shell.runtime.execution.dispatch_slash",
-        _boom,
-    )
-    monkeypatch.setattr(
-        "interactive_shell.utils.error_handling.exception_reporting.capture_exception",
-        lambda exc, **_kwargs: captured_errors.append(exc),
-    )
-    session = ReplSession()
-    console = Console(file=io.StringIO(), force_terminal=False, highlight=False)
-
-    loop_dispatch.dispatch_one_turn(
-        "/boom", session, console, on_exit=lambda: exit_calls.append(None)
-    )
-
-    # The error path catches the exception, prints a "command error" line,
-    # and continues — must NOT request exit, since the REPL stays alive.
-    assert exit_calls == []
-    assert len(captured_errors) == 1
-    assert isinstance(captured_errors[0], RuntimeError)
-
-
-def test_dispatch_one_turn_calls_on_exit_when_slash_returns_false(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Slash commands like /exit return False from dispatch_slash.
-
-    The persistent REPL relies on ``on_exit`` to translate that signal into
-    ``app.exit()`` — without this, /exit would silently no-op.
-    """
-    from rich.console import Console
-
-    monkeypatch.setattr(
-        "interactive_shell.runtime.execution.dispatch_slash",
-        lambda *_args, **_kwargs: False,
-    )
-
-    session = ReplSession()
-    console = Console(file=io.StringIO(), force_terminal=False, highlight=False)
-    exit_calls: list[None] = []
-
-    loop_dispatch.dispatch_one_turn(
-        "/exit", session, console, on_exit=lambda: exit_calls.append(None)
-    )
-
-    assert exit_calls == [None]
-
-
-def test_dispatch_one_turn_passes_is_tty_and_confirm_fn_to_dispatch_slash(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from rich.console import Console
-
-    args_passed: list[dict[str, object]] = []
-
-    def _fake_dispatch_slash(*args: object, **kwargs: object) -> bool:
-        args_passed.append(kwargs)
-        return True
-
-    monkeypatch.setattr(loop_execution, "dispatch_slash", _fake_dispatch_slash)
-    session = ReplSession()
-    console = Console(file=io.StringIO(), force_terminal=False, highlight=False)
-
-    def fake_confirm(prompt: str) -> str:
-        _ = prompt
-        return "y"
-
-    loop_dispatch.dispatch_one_turn(
-        "/exit",
-        session,
-        console,
-        on_exit=lambda: None,
-        confirm_fn=fake_confirm,
-        is_tty=False,
-    )
-
-    assert len(args_passed) == 1
-    assert args_passed[0]["confirm_fn"] is fake_confirm
-    assert args_passed[0]["is_tty"] is False
-
-
 def test_run_initial_input_dispatches_as_non_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict[str, object]] = []
 
-    def _fake_dispatch_one_turn(*args: object, **kwargs: object) -> None:
+    def _fake_handle_message_with_agent(*args: object, **kwargs: object) -> None:
         calls.append(kwargs)
 
-    monkeypatch.setattr(loop_dispatch, "dispatch_one_turn", _fake_dispatch_one_turn)
+    monkeypatch.setattr(
+        startup_initial_input,
+        "handle_message_with_agent",
+        _fake_handle_message_with_agent,
+    )
 
-    assert loop_dispatch.run_initial_input("/remote", ReplSession()) == 0
+    assert startup_initial_input.run_initial_input("/remote", ReplSession()) == 0
     assert len(calls) == 1
     assert calls[0]["is_tty"] is False
 
@@ -608,7 +523,7 @@ class TestLooksLikeCorrection:
         ],
     )
     def test_correction_cues_match(self, text: str) -> None:
-        assert loop_dispatch.looks_like_correction(text) is True
+        assert loop_turn_detection.looks_like_correction(text) is True
 
     @pytest.mark.parametrize(
         "text",
@@ -628,7 +543,7 @@ class TestLooksLikeCorrection:
         ],
     )
     def test_non_correction_text_does_not_match(self, text: str) -> None:
-        assert loop_dispatch.looks_like_correction(text) is False
+        assert loop_turn_detection.looks_like_correction(text) is False
 
 
 class TestLooksLikeConfirmationAnswer:
@@ -661,7 +576,7 @@ class TestLooksLikeConfirmationAnswer:
         ],
     )
     def test_recognised_tokens_match(self, text: str | None) -> None:
-        assert loop_dispatch.looks_like_confirmation_answer(text) is True
+        assert loop_turn_detection.looks_like_confirmation_answer(text) is True
 
     @pytest.mark.parametrize(
         "text",
@@ -677,7 +592,7 @@ class TestLooksLikeConfirmationAnswer:
         ],
     )
     def test_unrecognised_text_does_not_match(self, text: str) -> None:
-        assert loop_dispatch.looks_like_confirmation_answer(text) is False
+        assert loop_turn_detection.looks_like_confirmation_answer(text) is False
 
     @pytest.mark.parametrize(
         "text",
@@ -706,7 +621,7 @@ class TestLooksLikeConfirmationAnswer:
         ``"  yes\\n  "`` correctly DO match — that's just ``yes`` with
         stray whitespace, not a multi-line message.)
         """
-        assert loop_dispatch.looks_like_confirmation_answer(text) is False
+        assert loop_turn_detection.looks_like_confirmation_answer(text) is False
 
 
 class TestLooksLikeCancelRequest:
@@ -714,7 +629,7 @@ class TestLooksLikeCancelRequest:
 
     The recognizer is the gate that lets the prompt loop intercept
     ``/cancel``-style slashes typed while a dispatch is parked
-    (e.g. on a ``Proceed? [y/N]`` confirmation) and route them through
+    (e.g. on a ``Proceed? [y/N]`` confirmation) and send them through
     ``state.cancel_current_dispatch()`` instead of queueing them
     behind the dispatch they're trying to interrupt.
     """
@@ -734,7 +649,7 @@ class TestLooksLikeCancelRequest:
         ],
     )
     def test_recognised_cancel_slashes_match(self, text: str) -> None:
-        assert loop_dispatch.looks_like_cancel_request(text) is True
+        assert loop_turn_detection.looks_like_cancel_request(text) is True
 
     @pytest.mark.parametrize(
         "text",
@@ -763,7 +678,7 @@ class TestLooksLikeCancelRequest:
         ],
     )
     def test_unrecognised_text_does_not_match(self, text: str | None) -> None:
-        assert loop_dispatch.looks_like_cancel_request(text) is False
+        assert loop_turn_detection.looks_like_cancel_request(text) is False
 
 
 # ── Spinner state tests ──────────────────────────────────────────────────────
@@ -1020,11 +935,11 @@ class TestStreamingConsole:
 
         calls: list[str] = []
         monkeypatch.setattr(
-            "interactive_shell.ui.choice_menu.ensure_tty_column_zero",
+            "interactive_shell.ui.components.choice_menu.ensure_tty_column_zero",
             lambda: calls.append("ensure"),
         )
         monkeypatch.setattr(
-            "interactive_shell.ui.choice_menu.prepare_repl_output_line",
+            "interactive_shell.ui.components.choice_menu.prepare_repl_output_line",
             lambda: calls.append("prepare"),
         )
 
@@ -1096,9 +1011,9 @@ class TestReplState:
 
         asyncio.run(_scenario())
 
-    def test_cancel_from_worker_thread_routes_through_call_soon_threadsafe(self) -> None:
+    def test_cancel_from_worker_thread_uses_call_soon_threadsafe(self) -> None:
         """``Task.cancel`` is not thread-safe; ``cancel_current_dispatch``
-        must route the cancel via ``loop.call_soon_threadsafe`` when
+        must send the cancel via ``loop.call_soon_threadsafe`` when
         invoked from a worker thread (the ``/exit`` slash handler runs
         in ``asyncio.to_thread`` and reaches us through
         :func:`_request_exit`).
@@ -1154,7 +1069,7 @@ class TestReplState:
         a previous turn's worker-thread observation get clobbered by
         the next turn's ``Event.clear()``.
 
-        The fix: each ``_run_one_dispatch`` allocates a fresh
+        The fix: each dispatch processor turn allocates a fresh
         ``threading.Event`` and parks it at ``state.current_cancel_event``.
         The previous turn's worker keeps a strong reference to its OWN
         event; a new turn replacing the parked one never resets the
@@ -1200,7 +1115,7 @@ class TestBuildCancelKeyBindings:
 
     def test_returns_bindings_for_escape_and_ctrl_l(self) -> None:
         state = loop_state.ReplState()
-        kb = loop_dispatch.build_cancel_key_bindings(state)
+        kb = build_cancel_key_bindings(state)
         # Flatten each binding's keys tuple. ``Keys`` enum members have
         # ``.value`` strings like ``"escape"``/``"c-l"`` matching the
         # decorator argument; plain string keys are themselves.
@@ -1209,16 +1124,16 @@ class TestBuildCancelKeyBindings:
         assert "c-l" in registered, f"Ctrl+L binding missing — registered: {registered}"
 
 
-# ── Confirmation routing (worker-thread bridge) ──────────────────────────────
+# ── Prompt confirmation bridge (worker-thread handoff) ──────────────────────────────
 
 
-class TestRouteConfirmThroughPrompt:
-    """``_route_confirm_through_prompt`` runs on the worker thread that
-    dispatches a turn. It parks on a ``threading.Event`` while the main
+class TestRequestConfirmationViaPrompt:
+    """``request_confirmation_via_prompt`` runs on the worker thread that
+    runs a queued turn. It parks on a ``threading.Event`` while the main
     asyncio loop collects the next ``prompt_async`` return and hands the
     text back via ``state.deliver_confirmation``. ``Esc`` (or any other
     cancel path) flips ``state.current_cancel_event`` and the polling
-    loop returns ``""`` within one ``_PROMPT_REFRESH_INTERVAL_S`` tick.
+    loop raises ``DispatchCancelled`` within one prompt refresh tick.
 
     These tests pin both paths so a stuck event can never leave a worker
     parked forever. Each runs the function in a real background thread
@@ -1265,7 +1180,7 @@ class TestRouteConfirmThroughPrompt:
         """Run the worker in a background thread and capture both its
         return value (``result``) and any raised exception (``exc``).
 
-        Cancellation now raises :class:`loop_dispatch.DispatchCancelled` instead
+        Cancellation now raises :class:`controller_runtime.DispatchCancelled` instead
         of returning ``""``, so tests need access to both channels —
         the happy path checks ``result``, the cancel paths check
         ``exc``.
@@ -1275,7 +1190,9 @@ class TestRouteConfirmThroughPrompt:
 
         def target() -> None:
             try:
-                result.append(loop_dispatch.route_confirm_through_prompt(state, prompt_text))
+                result.append(
+                    controller_runtime.request_confirmation_via_prompt(state, prompt_text)
+                )
             except Exception as e:
                 exc.append(e)
 
@@ -1291,7 +1208,7 @@ class TestRouteConfirmThroughPrompt:
         """
         state = loop_state.ReplState()
         # Active dispatch must have a cancel event parked; in production
-        # ``_run_one_dispatch`` allocates this before invoking the
+        # ``InteractiveShellController._run_queued_turn`` allocates this before invoking the
         # confirm_fn. Never set in this test.
         state.current_cancel_event = threading.Event()
 
@@ -1313,7 +1230,7 @@ class TestRouteConfirmThroughPrompt:
         assert state.confirm_prompt_text == ""
 
     def test_raises_dispatch_cancelled_when_cancel_event_fires(self) -> None:
-        """Esc / ``/cancel`` **user-facing** path: routes through
+        """Esc / ``/cancel`` **user-facing** path: goes through
         ``state.cancel_current_dispatch()``, which sets BOTH
         ``current_cancel_event`` AND ``confirm_event``. The worker
         wakes from ``response_event.wait`` because ``confirm_event``
@@ -1322,7 +1239,7 @@ class TestRouteConfirmThroughPrompt:
         condition.
 
         With ``confirm_response`` never populated, the function MUST
-        raise :class:`loop_dispatch.DispatchCancelled` rather than returning
+        raise :class:`controller_runtime.DispatchCancelled` rather than returning
         the empty string. Returning ``""`` would be silently confirmed
         by ``execution_policy`` because ``[Y/n]`` treats empty as YES,
         so the in-flight action would run despite the user cancelling.
@@ -1342,7 +1259,7 @@ class TestRouteConfirmThroughPrompt:
         assert not t.is_alive(), "worker did not return within timeout"
         assert result == [], f"cancel path returned a value: {result}"
         assert len(exc) == 1, f"expected exactly one exception, got {exc}"
-        assert isinstance(exc[0], loop_dispatch.DispatchCancelled), (
+        assert isinstance(exc[0], controller_runtime.DispatchCancelled), (
             f"expected DispatchCancelled, got {type(exc[0]).__name__}: {exc[0]}"
         )
         assert state.confirm_event is None
@@ -1358,7 +1275,7 @@ class TestRouteConfirmThroughPrompt:
         ``current_cancel_event`` is pre-set; ``confirm_event`` is NOT
         set; the worker enters the loop, reaches the cancel-check
         BEFORE the first ``response_event.wait``, and raises
-        :class:`loop_dispatch.DispatchCancelled`. Deleting the cancel-check
+        :class:`controller_runtime.DispatchCancelled`. Deleting the cancel-check
         would make this test hang to ``_JOIN_TIMEOUT_S`` and fail.
         """
         state = loop_state.ReplState()
@@ -1372,7 +1289,7 @@ class TestRouteConfirmThroughPrompt:
         assert not t.is_alive(), "pre-set cancel did not unblock worker"
         assert result == []
         assert len(exc) == 1
-        assert isinstance(exc[0], loop_dispatch.DispatchCancelled)
+        assert isinstance(exc[0], controller_runtime.DispatchCancelled)
         assert state.confirm_event is None
 
     def test_in_loop_cancel_check_raises_after_wait_timeout(self) -> None:
@@ -1381,7 +1298,7 @@ class TestRouteConfirmThroughPrompt:
         cancel fires. The wait times out (because we don't touch
         ``confirm_event``), the next iteration's cancel-check sees
         ``current_cancel_event.is_set()`` and raises
-        :class:`loop_dispatch.DispatchCancelled`.
+        :class:`controller_runtime.DispatchCancelled`.
 
         Why this is needed: the user-facing test
         (``test_raises_dispatch_cancelled_when_cancel_event_fires``)
@@ -1411,7 +1328,7 @@ class TestRouteConfirmThroughPrompt:
         )
         assert result == []
         assert len(exc) == 1
-        assert isinstance(exc[0], loop_dispatch.DispatchCancelled)
+        assert isinstance(exc[0], controller_runtime.DispatchCancelled)
         assert state.confirm_event is None
 
     def test_confirm_response_reset_before_confirm_event_published(
@@ -1435,7 +1352,7 @@ class TestRouteConfirmThroughPrompt:
         state.current_cancel_event = threading.Event()
 
         # Track every ``confirm_event`` / ``confirm_response`` write
-        # made by ``_route_confirm_through_prompt``. Monkeypatching
+        # made by ``request_confirmation_via_prompt``. Monkeypatching
         # AFTER state construction so the dataclass ``__init__`` field
         # writes don't pollute the recorded order.
         assignments: list[str] = []
@@ -1457,7 +1374,7 @@ class TestRouteConfirmThroughPrompt:
         assert exc == [], f"happy path raised unexpectedly: {exc}"
         assert result == ["answer"]
 
-        # During setup ``_route_confirm_through_prompt`` writes both
+        # During setup ``request_confirmation_via_prompt`` writes both
         # attributes. The first write of each is the setup phase
         # (later writes are the ``finally`` cleanup which clears
         # both — order there doesn't matter). Pull out just the
@@ -1489,7 +1406,7 @@ class TestRouteConfirmThroughPrompt:
         sees a non-empty list and returns the user's actual answer.
         Cancellation, by contrast, sets the event WITHOUT delivering
         an answer and is now distinguishable — that path raises
-        :class:`loop_dispatch.DispatchCancelled` (see the cancel-path tests
+        :class:`controller_runtime.DispatchCancelled` (see the cancel-path tests
         above).
         """
         state = loop_state.ReplState()
@@ -1539,7 +1456,7 @@ class TestExecutionAllowedRespectsDispatchCancelled:
         console = Console(file=io.StringIO(), force_terminal=False, highlight=False)
 
         def _cancel_confirm(_prompt: str) -> str:
-            raise loop_dispatch.DispatchCancelled("cancelled while awaiting confirmation")
+            raise controller_runtime.DispatchCancelled("cancelled while awaiting confirmation")
 
         policy = ExecutionPolicyResult(
             verdict="ask",
@@ -1547,7 +1464,7 @@ class TestExecutionAllowedRespectsDispatchCancelled:
             reason="this opensre subcommand may change local config or infrastructure",
         )
 
-        with pytest.raises(loop_dispatch.DispatchCancelled):
+        with pytest.raises(controller_runtime.DispatchCancelled):
             execution_allowed(
                 policy,
                 session=session,
@@ -1696,7 +1613,7 @@ class TestThemeCommand:
             refreshed.append({"console": console, "session": session, "theme_notice": theme_notice})
 
         monkeypatch.setattr(
-            "interactive_shell.ui.rendering.refresh_welcome_poster",
+            "interactive_shell.ui.components.rendering.refresh_welcome_poster",
             _refresh,
         )
 
@@ -1741,7 +1658,7 @@ class TestThemeCommand:
             lambda: drains.append("drain"),
         )
         monkeypatch.setattr(
-            "interactive_shell.ui.rendering.refresh_welcome_poster",
+            "interactive_shell.ui.components.rendering.refresh_welcome_poster",
             lambda *_args, **_kwargs: drains.append("poster"),
         )
         monkeypatch.setattr("cli.commands.config._load_config", lambda: {})
@@ -1756,7 +1673,7 @@ class TestThemeCommand:
 
 
 def test_refresh_prompt_theme_skips_invalidate_when_app_not_running() -> None:
-    from interactive_shell.ui.prompt_surface import refresh_prompt_theme
+    from interactive_shell.ui.input_prompt.style import refresh_prompt_theme
 
     invalidated: list[bool] = []
 

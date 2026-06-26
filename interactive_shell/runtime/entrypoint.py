@@ -4,58 +4,28 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from rich.console import Console
 
 from config.repl_config import ReplConfig
 from core.domain.alerts import inbox as _alert_inbox
 from interactive_shell.harness.state.sessions.store import SessionStore
-from interactive_shell.runtime.dispatch import run_initial_input
-from interactive_shell.runtime.loop import run_interactive
-from interactive_shell.runtime.session import ReplSession
-from interactive_shell.runtime.tasks import TaskRegistry
+from interactive_shell.runtime.controller import InteractiveShellController
+from interactive_shell.runtime.core.context import create_repl_runtime_context
+from interactive_shell.runtime.startup.first_launch_github import require_startup_github_login
+from interactive_shell.runtime.startup.initial_input import run_initial_input
 from interactive_shell.ui import DIM, render_banner
-from interactive_shell.ui import prompt_surface as _prompt_surface
+from interactive_shell.ui import input_prompt as _input_prompt
 from tools.fleet_monitoring.sweep import run_startup_sweep
 
 log = logging.getLogger(__name__)
 
 
-def _hydrate_configured_integrations(session: ReplSession) -> None:
-    """Record configured integrations (env + local store) on the session.
-
-    Without this the agent can't answer "is X installed?" and the integration
-    guards stay dead (``configured_integrations_known`` never flips). Delegates
-    to :meth:`ReplSession.hydrate_configured_integrations` so boot-time
-    hydration and post-mutation refresh resolve the same env + store set.
-    Best-effort: any failure leaves the session in its default "unknown" state.
-    """
-    session.hydrate_configured_integrations()
-
-
-async def repl_main(initial_input: str | None = None, _config: ReplConfig | None = None) -> int:
-    from platform.analytics.cli import identify_saved_github_username
-    from platform.terminal.theme import get_active_theme_name
-
-    identify_saved_github_username()
-
-    cfg = _config or ReplConfig.load()
-    session = ReplSession()
-    session.active_theme_name = get_active_theme_name()
-    _hydrate_configured_integrations(session)
-    session.task_registry = TaskRegistry.persistent()
-    pt_session = _prompt_surface._build_prompt_session()
-    session.prompt_history_backend = pt_session.history
-
-    if initial_input:
-        session.warm_resolved_integrations()
-        return run_initial_input(initial_input, session)
-
-    # Open the session file now that we know this is an interactive REPL run.
-    SessionStore.open_session(session)
-
+@contextmanager
+def _alert_listener(cfg: ReplConfig) -> Iterator[_alert_inbox.AlertInbox | None]:
     alert_listener_handle: _alert_inbox.AlertListenerHandle | None = None
     inbox: _alert_inbox.AlertInbox | None = None
     if cfg.alert_listener_enabled:
@@ -79,79 +49,38 @@ async def repl_main(initial_input: str | None = None, _config: ReplConfig | None
             )
         except Exception as exc:
             log.warning("Alert listener could not start: %s — continuing without it.", exc)
-
     try:
-        await run_interactive(session, pt_session=pt_session, inbox=inbox)
-        return 0
+        yield inbox
     finally:
         if alert_listener_handle is not None:
             alert_listener_handle.stop()
             _alert_inbox.set_current_inbox(None)
+
+
+async def repl_main(initial_input: str | None = None, _config: ReplConfig | None = None) -> int:
+    from platform.analytics.cli import identify_saved_github_username
+
+    identify_saved_github_username()
+
+    cfg = _config or ReplConfig.load()
+    pt_session = _input_prompt._build_prompt_session()
+    runtime_context = create_repl_runtime_context(pt_session=pt_session)
+    session = runtime_context.session
+
+    if initial_input:
+        session.warm_resolved_integrations()
+        return run_initial_input(initial_input, session)
+
+    # Open the session file now that we know this is an interactive REPL run.
+    SessionStore.open_session(session)
+
+    try:
+        with _alert_listener(cfg) as inbox:
+            runtime_context.inbox = inbox
+            await InteractiveShellController(runtime_context).start_interactive_shell()
+        return 0
+    finally:
         SessionStore.flush(session)
-
-
-def _github_login_explicitly_bypassed() -> bool:
-    """Cheap check for contexts where the GitHub gate is intentionally skipped.
-
-    Used only as the *error* fallback for the first-launch gate. It must not import
-    the gate module (that import may be exactly what failed), so it re-derives the
-    documented bypasses directly:
-
-    * ``OPENSRE_SKIP_GITHUB_LOGIN`` — the user-facing escape hatch.
-    * CI/CD and test harnesses — env vars only (no analytics import).
-    * Non-interactive stdin — scripted / piped runs have no prompt to drive.
-    """
-    if os.getenv("OPENSRE_SKIP_GITHUB_LOGIN", "").strip().lower() in {"1", "true", "yes", "on"}:
-        return True
-    if os.getenv("OPENSRE_INVESTIGATION_SOURCE", "").strip().lower() == "test":
-        return True
-    if os.getenv("OPENSRE_IS_TEST", "0").strip() == "1":
-        return True
-    if os.getenv("PYTEST_CURRENT_TEST"):
-        return True
-    if os.getenv("GITHUB_ACTIONS", "").strip().lower() == "true":
-        return True
-    ci_value = os.getenv("CI", "").strip().lower()
-    if ci_value in {"1", "true", "yes"}:
-        return True
-    try:
-        return not sys.stdin.isatty()
-    except Exception:
-        return True
-
-
-def _maybe_require_github_login(console: Console) -> bool:
-    """Enforce the first-launch GitHub login gate.
-
-    Returns True when the REPL should start (gate not required, or login
-    succeeded) and False when startup must not proceed (user quit at the gate, or
-    the gate could not run in a context where GitHub sign-in is mandatory).
-
-    On an unexpected error we deliberately do NOT fail open into the REPL: that
-    would let a gate bug silently skip the mandatory sign-in. Instead we only
-    allow startup when an explicit, documented bypass applies (skip env var,
-    CI/test harness, or non-TTY); otherwise we block and point the user at the
-    escape hatch so a real outage can never permanently lock them out.
-    """
-    try:
-        from interactive_shell.runtime.first_launch_github import (
-            require_github_login_on_first_launch,
-            should_require_github_login,
-        )
-
-        if not should_require_github_login():
-            return True
-        return require_github_login_on_first_launch(console)
-    except Exception:
-        log.warning("First-launch GitHub login gate failed.", exc_info=True)
-        if _github_login_explicitly_bypassed():
-            return True
-        console.print(
-            "GitHub sign-in is required to use OpenSRE, but the sign-in step could not run. "
-            "Set [bold]OPENSRE_SKIP_GITHUB_LOGIN=1[/bold] to bypass this, then relaunch "
-            "[bold]opensre[/bold]."
-        )
-        return False
 
 
 def run_repl(initial_input: str | None = None, config: ReplConfig | None = None) -> int:
@@ -171,7 +100,7 @@ def run_repl(initial_input: str | None = None, config: ReplConfig | None = None)
             legacy_windows=False,
         )
         render_banner(real_console)
-        if not _maybe_require_github_login(real_console):
+        if not require_startup_github_login(real_console):
             return 0
 
     try:

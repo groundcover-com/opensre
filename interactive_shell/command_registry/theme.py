@@ -8,7 +8,7 @@ from rich.console import Console
 
 from interactive_shell.command_registry.types import ExecutionTier, SlashCommand
 from interactive_shell.runtime import ReplSession
-from interactive_shell.ui.choice_menu import repl_choose_one, repl_tty_interactive
+from interactive_shell.ui.components.choice_menu import repl_choose_one, repl_tty_interactive
 from platform.terminal import theme as ui_theme
 from platform.terminal.theme import (
     get_active_theme_name,
@@ -24,7 +24,7 @@ def _refresh_prompt_style(session: ReplSession) -> None:
 
 def _settle_and_drain_cpr() -> None:
     """Let in-flight terminal CPR replies land, then discard them from stdin."""
-    from interactive_shell.runtime.cpr_stdin import drain_stale_cpr_bytes
+    from interactive_shell.ui.components.cpr_stdin import drain_stale_cpr_bytes
 
     time.sleep(0.05)
     drain_stale_cpr_bytes()
@@ -36,7 +36,7 @@ def _persist_and_report_theme(
     selected: str,
 ) -> None:
     from cli.commands.config import _load_config, _save_config, _set_nested_key
-    from interactive_shell.ui.rendering import refresh_welcome_poster
+    from interactive_shell.ui.components.rendering import refresh_welcome_poster
 
     active = set_active_theme(selected)
     session.active_theme_name = active.name

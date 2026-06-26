@@ -20,14 +20,14 @@ from interactive_shell.ui import (
     render_mcp_table,
     repl_table,
 )
-from interactive_shell.ui.choice_menu import (
+from interactive_shell.ui.components.choice_menu import (
     CRUMB_SEP,
     prepare_repl_output_line,
     repl_choose_one,
     repl_section_break,
     repl_tty_interactive,
 )
-from interactive_shell.ui.rendering import (
+from interactive_shell.ui.components.rendering import (
     _repl_table_width,
     print_repl_table,
     repl_print,
@@ -209,7 +209,7 @@ def _run_verify(session: ReplSession, console: Console, service: str | None = No
     return True
 
 
-def _cmd_verify_route(session: ReplSession, console: Console, args: list[str]) -> bool:
+def _cmd_verify(session: ReplSession, console: Console, args: list[str]) -> bool:
     return _cmd_integrations(session, console, ["verify", *args])
 
 
@@ -431,7 +431,7 @@ COMMANDS: list[SlashCommand] = [
     SlashCommand(
         "/verify",
         "Verify configured integration connectivity.",
-        _cmd_verify_route,
+        _cmd_verify,
         usage=("/verify", "/verify <service>"),
         execution_tier=ExecutionTier.ELEVATED,
     ),
