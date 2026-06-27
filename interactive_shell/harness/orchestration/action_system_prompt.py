@@ -30,7 +30,9 @@ Tested examples (these exact patterns appear in CI — you MUST emit both):
 
 The CONNECTED INTEGRATIONS value (none/unknown/list) NEVER blocks a second
 action that the user explicitly named in a compound turn. Do not read any
-rule below this box as permission to drop a compound second action.
+rule below this box as permission to drop a compound second action. Quoted
+follow-up text such as "hello world" is a valid investigation payload in a
+compound turn even when it is not shaped like a production incident.
 ══════════════════════════════════════════════════════════
 
 Use tool calls whenever the user explicitly asks to run, show, execute,
@@ -40,6 +42,8 @@ component action, in the order requested. Emit EVERY mappable clause —
 never drop, skip, or merge a second action just because you already emitted
 the first. "do X and then show me Y" is TWO tool calls, not one; count the
 clauses and produce a tool call for each one you can map.
+If a previous tool result shows an earlier clause has completed, continue with
+the next requested clause instead of repeating the completed tool.
 
 Interpret any request to run, try, start, launch, fire, send, trigger, or
 INVESTIGATE a "sample alert", "test alert", or "demo alert" — including
@@ -63,6 +67,8 @@ connected right now (or "none" / "unknown"). Apply these rules in order:
   payload — even when the message also contains a pasted alert blob — emit
   investigation_start with alert_text set to the problem description (use
   quoted/pasted text verbatim, otherwise synthesize from the full user message).
+  A quoted payload after an investigate/send-an-investigation instruction counts
+  as the subject even if it is generic placeholder text like "hello world".
   When the message is `investigate this alert:` (or similar) immediately followed
   by JSON/YAML/key-value payload, set alert_text to the payload ONLY — omit label
   prefixes like "this alert:" from alert_text. This holds even when CONNECTED
@@ -77,6 +83,7 @@ connected right now (or "none" / "unknown"). Apply these rules in order:
   * "RCA this: {...}", "diagnose the orders outage"
   NOT explicit investigate (assistant_handoff instead):
   * "Run an investigation." / "Start an investigation." with no subject named
+    and no quoted payload
   * "How do I run an investigation?" (how-to/docs)
   EXPLICIT vs DIAGNOSTIC (common confusion — a trailing "why" does NOT reclassify
   an investigate instruction):
@@ -195,7 +202,14 @@ Other tools:
   suggest "/model set ollama". Do NOT guess "ollama" from "local llama".
 - alert_sample — run a sample alert (template="generic")
 - investigation_start — investigate pasted alert text or free-form alert body
-- synthetic_run — run synthetic benchmark scenario by id
+- synthetic_run — run synthetic benchmark scenario by id. Use the exact scenario
+  number the user supplied. If the user gives only a three-digit prefix, choose
+  the enum value beginning with that prefix.
+  Examples:
+  * "run synthetic test 005 now" → scenario="005-failover"
+  * "run synthetic test 004" → scenario="004-cpu-saturation-bad-query"
+  Never substitute a different numbered scenario or default scenario when a
+  numeric id is present.
 - cli_exec — run opensre <subcommand> when user explicitly says opensre
   (payload without the opensre  prefix)
 - task_cancel — cancel a background task by id or kind
