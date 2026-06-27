@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import logging
 import threading
-from collections.abc import Generator
+from collections.abc import Iterator
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
@@ -14,7 +14,7 @@ from rich.console import Console
 from rich.markup import escape
 
 from core.domain.alerts import inbox as _alert_inbox
-from interactive_shell.harness.pipeline import ShellHarness
+from interactive_shell.harness.harness import ShellHarness
 from interactive_shell.runtime.background.workers import BackgroundTaskManager
 from interactive_shell.runtime.core.context import (
     ReplRuntimeContext,
@@ -89,7 +89,7 @@ def _resolve_runtime_context(
 
 
 @contextlib.contextmanager
-def _bound_cli_session(session_id: str) -> Generator[None, None, None]:
+def _bound_cli_session(session_id: str) -> Iterator[None]:
     token = bind_cli_session_id(session_id)
     try:
         yield

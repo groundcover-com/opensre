@@ -24,7 +24,7 @@ from interactive_shell.harness.orchestration.tool_registry import (
     ACTION_KIND_TO_TOOL,
     REGISTRY,
 )
-from interactive_shell.harness.pipeline import handle_message_with_agent
+from interactive_shell.harness.harness import handle_message_with_agent
 from interactive_shell.harness.tests._oracle_normalize import (
     normalize_history_entry,
     normalize_response_text,
