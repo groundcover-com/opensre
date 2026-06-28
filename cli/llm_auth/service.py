@@ -12,9 +12,10 @@ from cli.llm_auth.providers import (
     provider_for_profile,
     resolve_auth_profile,
 )
-from cli.wizard.config import ProviderOption
+from cli.wizard.config import PROVIDER_BY_VALUE, ProviderOption
 from cli.wizard.env_sync import sync_provider_env
 from cli.wizard.validation import validate_provider_credentials
+from config.llm_auth.auth_method import OAUTH_AUTH_METHOD
 from config.llm_auth.credentials import (
     delete as delete_provider_auth,
 )
@@ -35,6 +36,7 @@ from config.llm_auth.records import (
 from config.llm_credentials import (
     save_llm_api_key,
 )
+from integrations.llm_cli.codex_oauth import CodexOAuthError, run_codex_oauth_login
 
 
 class AuthSetupError(RuntimeError):
@@ -150,6 +152,14 @@ def configure_api_key_provider(
     )
 
 
+def _managed_codex_login_detail() -> str:
+    try:
+        result = run_codex_oauth_login()
+    except CodexOAuthError as exc:
+        raise AuthSetupError(str(exc)) from exc
+    return result.detail
+
+
 def _subscription_login_command(profile: ProviderAuthProfile, binary_path: str) -> list[str]:
     if profile.provider_value == "codex":
         return [binary_path, "login"]
@@ -187,6 +197,34 @@ def configure_cli_subscription_provider(
 
     login_completed = False
     if probe.logged_in is not True:
+        if profile.provider_value == "codex" and launch_login:
+            detail = _managed_codex_login_detail()
+            selected_model = (model if model is not None else provider.default_model).strip()
+            public_provider = PROVIDER_BY_VALUE["openai"]
+            written_path = (
+                sync_provider_env(
+                    provider=public_provider,
+                    model=selected_model,
+                    model_provider=provider,
+                    auth_method=OAUTH_AUTH_METHOD,
+                    env_path=env_path,
+                )
+                if set_provider
+                else None
+            )
+            _save_auth_record(
+                provider=provider,
+                profile=profile,
+                source="codex-oauth",
+                detail=detail,
+            )
+            return AuthSetupResult(
+                provider=provider.value,
+                model=selected_model,
+                source="codex-oauth",
+                detail=detail,
+                env_path=written_path,
+            )
         if launch_login and probe.bin_path:
             _run_vendor_login(profile, probe.bin_path)
             login_completed = True
@@ -236,6 +274,22 @@ def provider_status(raw_name: str) -> AuthStatus:
             detail,
             verified=resolved.verified,
             stale=resolved.stale,
+        )
+
+    record_verified = (record.get("verified") or "").strip().lower()
+    record_stale = (record.get("stale") or "").strip().lower()
+    if (
+        record.get("source") == "codex-oauth"
+        and record_verified != "false"
+        and record_stale != "true"
+    ):
+        return AuthStatus(
+            provider.value,
+            profile.label,
+            True,
+            "codex-oauth",
+            record.get("detail") or "OpenAI OAuth tokens are stored for Codex.",
+            verified=True,
         )
 
     if provider.adapter_factory is None:
