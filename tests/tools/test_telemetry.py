@@ -971,7 +971,9 @@ _TOOLS_WITHOUT_DELIBERATE_CATCH: frozenset[str] = frozenset(
         "describe_rds_instance",
         "ec2_instances_by_tag",
         "execute_aws_operation",
+        "execute_github_issue_mutation",
         "fetch_failed_run",
+        "generate_work_status_report",
         "get_airflow_dag_runs",
         "get_airflow_metrics",
         "get_airflow_task_instances",
@@ -1093,6 +1095,8 @@ _TOOLS_WITHOUT_DELIBERATE_CATCH: frozenset[str] = frozenset(
         "list_github_actions_active_runs",
         "list_github_actions_run_jobs",
         "list_github_actions_workflow_runs",
+        "list_github_security_alerts",
+        "list_github_work_items",
         "list_jenkins_builds",
         "list_jenkins_jobs",
         "list_jenkins_running_builds",
@@ -1108,6 +1112,7 @@ _TOOLS_WITHOUT_DELIBERATE_CATCH: frozenset[str] = frozenset(
         "pi_coding_task",
         "prefect_flow_runs",
         "prefect_worker_health",
+        "propose_github_issue_mutation_from_slack",
         "query_betterstack_logs",
         "query_coralogix_logs",
         "query_datadog_all",
@@ -1138,6 +1143,8 @@ _TOOLS_WITHOUT_DELIBERATE_CATCH: frozenset[str] = frozenset(
         "search_github_code",
         "search_github_issues",
         "search_sentry_issues",
+        "summarize_community_followups",
+        "summarize_github_pr_status",
         # Temporal tools use try/finally only (to close the client); the client
         # returns structured error dicts for handled HTTP failures, and any
         # unexpected exception escapes to the #1476 global wrapper.
