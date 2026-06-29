@@ -13,6 +13,7 @@ from integrations.datadog.client import DatadogClient, DatadogConfig
 from integrations.elasticsearch.client import ElasticsearchClient, ElasticsearchConfig
 from integrations.gitlab import build_gitlab_config, validate_gitlab_config
 from integrations.grafana.client import get_grafana_client_from_credentials
+from integrations.groundcover.client import GroundcoverClient, GroundcoverConfig
 from integrations.honeycomb.client import HoneycombClient
 from integrations.incident_io.client import IncidentIoClient
 from integrations.jenkins import build_jenkins_config, validate_jenkins_config
@@ -76,6 +77,31 @@ def validate_datadog_integration(
         ok=False,
         detail=f"Datadog validation failed: {result.get('error', 'unknown error')}",
     )
+
+
+def validate_groundcover_integration(
+    *,
+    api_key: str,
+    mcp_url: str = "",
+    tenant_uuid: str = "",
+    backend_id: str = "",
+    timezone: str = "",
+) -> IntegrationHealthResult:
+    """Validate groundcover credentials with a lightweight read-only MCP probe."""
+    try:
+        config = GroundcoverConfig.model_validate(
+            {
+                "api_key": api_key,
+                "mcp_url": mcp_url,
+                "tenant_uuid": tenant_uuid,
+                "backend_id": backend_id,
+                "timezone": timezone,
+            }
+        )
+    except Exception as err:
+        return IntegrationHealthResult(ok=False, detail=f"groundcover config invalid: {err}")
+    probe = GroundcoverClient(config).probe_access()
+    return IntegrationHealthResult(ok=probe.ok, detail=probe.detail)
 
 
 def validate_honeycomb_integration(

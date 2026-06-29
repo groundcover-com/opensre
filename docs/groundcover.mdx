@@ -18,6 +18,7 @@ read-only — no monitor creation, silencing, or other mutating actions.
 
 | Command | What it does |
 | --- | --- |
+| `opensre onboard` | Launch the onboarding wizard and pick groundcover from the Observability menu |
 | `opensre integrations setup groundcover` | Store a groundcover service-account token and routing settings |
 | `opensre integrations verify groundcover` | Connect to the MCP endpoint, list tools, and check workspace routing |
 
@@ -29,13 +30,27 @@ once). OpenSRE never performs write actions.
 
 ## 2. Configure
 
-Run the interactive setup:
+### Option 1: Interactive onboarding wizard
+
+```bash
+opensre onboard
+```
+
+Pick **groundcover** from the Observability section of the integration menu. The
+wizard prompts for the service-account API key, the MCP URL (defaults to
+`https://mcp.groundcover.com/api/mcp`), an optional tenant UUID and backend ID for
+multi-workspace accounts, and a timezone. It validates the token against the MCP
+endpoint before saving, so you get immediate feedback if anything is wrong.
+
+### Option 2: Standalone CLI setup
 
 ```bash
 opensre integrations setup groundcover
 ```
 
-…or set environment variables:
+Same prompts as the wizard, in a smaller standalone form.
+
+### Option 3: Environment variables
 
 ```bash
 export GROUNDCOVER_API_KEY="<service-account-token>"   # alias: GROUNDCOVER_MCP_TOKEN

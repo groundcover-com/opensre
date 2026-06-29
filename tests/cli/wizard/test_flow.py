@@ -317,6 +317,83 @@ def test_run_wizard_configures_honeycomb(monkeypatch, tmp_path) -> None:
     ]
 
 
+def test_run_wizard_configures_groundcover(monkeypatch, tmp_path) -> None:
+    select_responses = iter(
+        ["quickstart", "anthropic", "api_key", "claude-opus-4-7", "groundcover"]
+    )
+    password_responses = iter(["llm-secret", "gc-token"])
+    text_responses = iter(
+        [
+            "https://mcp.groundcover.com/api/mcp",
+            "tenant-123",
+            "prod",
+            "UTC",
+        ]
+    )
+    saved_integrations: list[tuple[str, dict]] = []
+    synced_env_values: list[dict[str, str]] = []
+
+    def _mock_select(*_args, **_kwargs):
+        m = MagicMock()
+        m.ask.return_value = next(select_responses)
+        return m
+
+    def _mock_password(*_args, **_kwargs):
+        m = MagicMock()
+        m.ask.return_value = next(password_responses)
+        return m
+
+    def _mock_text(*_args, **_kwargs):
+        m = MagicMock()
+        m.ask.return_value = next(text_responses)
+        return m
+
+    monkeypatch.setattr(_ui, "select_prompt", _mock_select)
+    monkeypatch.setattr(flow.questionary, "password", _mock_password)
+    monkeypatch.setattr(flow.questionary, "text", _mock_text)
+    monkeypatch.setattr(_ui, "get_store_path", lambda: tmp_path / "opensre.json")
+    monkeypatch.setattr(flow, "probe_local_target", lambda _path: ProbeResult("local", True, "ok"))
+    monkeypatch.setattr(
+        _integration_configurators,
+        "validate_groundcover_integration",
+        lambda **_kwargs: flow.IntegrationHealthResult(ok=True, detail="groundcover ok"),
+    )
+    monkeypatch.setattr(flow, "save_local_config", lambda **_kwargs: tmp_path / "opensre.json")
+    monkeypatch.setattr(flow, "sync_provider_env", lambda **_kwargs: tmp_path / ".env")
+    monkeypatch.setattr(_ui, "save_llm_api_key", lambda *_args, **_kwargs: None)
+
+    def _sync_env_values(values: dict[str, str], **_kwargs):
+        synced_env_values.append(values)
+        return tmp_path / ".env"
+
+    monkeypatch.setattr(_integration_configurators, "sync_env_values", _sync_env_values)
+    monkeypatch.setattr(
+        _integration_configurators,
+        "upsert_integration",
+        lambda service, payload: saved_integrations.append((service, payload)),
+    )
+
+    exit_code = flow.run_wizard()
+
+    assert exit_code == 0
+    assert saved_integrations == [
+        (
+            "groundcover",
+            {
+                "credentials": {
+                    "api_key": "gc-token",
+                    "mcp_url": "https://mcp.groundcover.com/api/mcp",
+                    "timezone": "UTC",
+                    "tenant_uuid": "tenant-123",
+                    "backend_id": "prod",
+                }
+            },
+        )
+    ]
+    # Routing/URL settings are not secrets but the token must stay out of `.env`.
+    assert synced_env_values == [{}]
+
+
 def test_run_wizard_configures_coralogix(monkeypatch, tmp_path) -> None:
     select_responses = iter(["quickstart", "anthropic", "api_key", "claude-opus-4-7", "coralogix"])
     password_responses = iter(["llm-secret", "cx_test"])

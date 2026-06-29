@@ -74,6 +74,12 @@ ONBOARD_INTEGRATION_CHOICES: tuple[Choice, ...] = (
         hint="Query distributed traces from a standalone Tempo backend",
     ),
     Choice(
+        value="groundcover",
+        label="groundcover",
+        group="Observability",
+        hint="eBPF logs, traces, metrics, APM, K8s events/entities, and monitors via gcQL",
+    ),
+    Choice(
         value="aws",
         label="AWS",
         group="Infrastructure & CI",

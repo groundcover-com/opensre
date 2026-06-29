@@ -30,6 +30,7 @@ from cli.wizard.integration_health import (
     validate_gitlab_integration,
     validate_google_docs_integration,
     validate_grafana_integration,
+    validate_groundcover_integration,
     validate_honeycomb_integration,
     validate_incident_io_integration,
     validate_jenkins_integration,
@@ -77,6 +78,8 @@ DEFAULT_SENTRY_MCP_URL = "https://mcp.sentry.dev/mcp"
 DEFAULT_SENTRY_MCP_MODE = "streamable-http"
 DEFAULT_SENTRY_URL = "https://sentry.io"
 DEFAULT_GITLAB_BASE_URL = "https://gitlab.com/api/v4"
+DEFAULT_GROUNDCOVER_MCP_URL = "https://mcp.groundcover.com/api/mcp"
+DEFAULT_GROUNDCOVER_TIMEZONE = "UTC"
 
 
 def _looks_like_openclaw_control_ui_url(value: object) -> bool:
@@ -213,6 +216,57 @@ def _configure_datadog() -> tuple[str, str]:
             )
             env_path = sync_env_values({})
             return "Datadog", str(env_path)
+        _console.print(f"[{SECONDARY}]Try again or press Ctrl+C to cancel.[/]")
+
+
+def _configure_groundcover() -> tuple[str, str]:
+    _, credentials = _integration_defaults("groundcover")
+    while True:
+        api_key = _prompt_value(
+            "groundcover service-account API key",
+            default=_string_value(credentials.get("api_key")),
+            secret=True,
+        )
+        mcp_url = _prompt_value(
+            "groundcover MCP URL",
+            default=_string_value(credentials.get("mcp_url"), DEFAULT_GROUNDCOVER_MCP_URL),
+        )
+        tenant_uuid = _prompt_value(
+            "Tenant UUID (optional, multi-workspace accounts)",
+            default=_string_value(credentials.get("tenant_uuid")),
+            allow_empty=True,
+        )
+        backend_id = _prompt_value(
+            "Backend ID (optional, multi-backend tenants)",
+            default=_string_value(credentials.get("backend_id")),
+            allow_empty=True,
+        )
+        timezone = _prompt_value(
+            "Timezone",
+            default=_string_value(credentials.get("timezone"), DEFAULT_GROUNDCOVER_TIMEZONE),
+        )
+        with _console.status("Validating groundcover integration...", spinner="dots"):
+            result = validate_groundcover_integration(
+                api_key=api_key,
+                mcp_url=mcp_url,
+                tenant_uuid=tenant_uuid,
+                backend_id=backend_id,
+                timezone=timezone,
+            )
+        _render_integration_result("groundcover", result)
+        if result.ok:
+            new_credentials: dict[str, str] = {
+                "api_key": api_key,
+                "mcp_url": mcp_url,
+                "timezone": timezone,
+            }
+            if tenant_uuid:
+                new_credentials["tenant_uuid"] = tenant_uuid
+            if backend_id:
+                new_credentials["backend_id"] = backend_id
+            upsert_integration("groundcover", {"credentials": new_credentials})
+            env_path = sync_env_values({})
+            return "groundcover", str(env_path)
         _console.print(f"[{SECONDARY}]Try again or press Ctrl+C to cancel.[/]")
 
 
@@ -1725,6 +1779,7 @@ def _configure_selected_integrations() -> tuple[list[str], str | None]:
         "grafana_local": _configure_grafana_local,
         "grafana": _configure_grafana,
         "datadog": _configure_datadog,
+        "groundcover": _configure_groundcover,
         "honeycomb": _configure_honeycomb,
         "coralogix": _configure_coralogix,
         "slack": _configure_slack,
@@ -1756,6 +1811,7 @@ def _configure_selected_integrations() -> tuple[list[str], str | None]:
         "grafana_local": "grafana local",
         "grafana": "grafana",
         "datadog": "datadog",
+        "groundcover": "groundcover",
         "honeycomb": "honeycomb",
         "coralogix": "coralogix",
         "slack": "slack",

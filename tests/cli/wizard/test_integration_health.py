@@ -16,6 +16,7 @@ from cli.wizard.integration_health import (
     validate_discord_bot,
     validate_github_mcp_integration,
     validate_grafana_integration,
+    validate_groundcover_integration,
     validate_honeycomb_integration,
     validate_incident_io_integration,
     validate_sentry_integration,
@@ -44,6 +45,7 @@ def test_legacy_integration_health_import_surface_still_exports_validators() -> 
         "validate_gitlab_integration",
         "validate_google_docs_integration",
         "validate_grafana_integration",
+        "validate_groundcover_integration",
         "validate_honeycomb_integration",
         "validate_incident_io_integration",
         "validate_jenkins_integration",
@@ -129,6 +131,36 @@ def test_validate_datadog_integration_fails(monkeypatch) -> None:
 
     assert result.ok is False
     assert "http 403" in result.detail.lower()
+
+
+def test_validate_groundcover_integration_succeeds(monkeypatch) -> None:
+    from integrations.probes import ProbeResult
+
+    monkeypatch.setattr(
+        "cli.wizard.integration_validators.client_validators.GroundcoverClient.probe_access",
+        lambda _self: ProbeResult.passed(
+            "Connected to mcp.groundcover.com; 14 MCP tools available."
+        ),
+    )
+
+    result = validate_groundcover_integration(api_key="gc-token")
+
+    assert result.ok is True
+    assert "mcp tools available" in result.detail.lower()
+
+
+def test_validate_groundcover_integration_fails_on_probe_failure(monkeypatch) -> None:
+    from integrations.probes import ProbeResult
+
+    monkeypatch.setattr(
+        "cli.wizard.integration_validators.client_validators.GroundcoverClient.probe_access",
+        lambda _self: ProbeResult.failed("Account has 2 workspaces; set GROUNDCOVER_TENANT_UUID."),
+    )
+
+    result = validate_groundcover_integration(api_key="gc-token")
+
+    assert result.ok is False
+    assert "groundcover_tenant_uuid" in result.detail.lower()
 
 
 def test_validate_honeycomb_integration_succeeds(monkeypatch) -> None:
