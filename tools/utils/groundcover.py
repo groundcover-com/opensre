@@ -36,6 +36,9 @@ DEFAULT_LOGS_QUERY = "level:error | fields _time, workload, instance, content | 
 DEFAULT_TRACES_QUERY = (
     "status:error | fields _time, workload, span_name, status_code, duration_seconds | limit 50"
 )
+DEFAULT_EVENTS_QUERY = "type:Warning | fields _time, reason, namespace, message | limit 50"
+DEFAULT_ISSUES_QUERY = "* | fields monitor_name, last_firing_start, env, silenced | limit 50"
+DEFAULT_ENTITIES_QUERY = "kind:Pod | fields name, namespace, status_phase | limit 100"
 
 
 # Reusable query-guidance preamble embedded in every gcQL tool description.

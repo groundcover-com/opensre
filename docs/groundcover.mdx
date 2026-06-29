@@ -2,15 +2,14 @@
 title: "groundcover"
 ---
 
-Investigate incidents with [groundcover](https://groundcover.com) logs and traces,
+Investigate incidents with [groundcover](https://groundcover.com) logs, traces,
+metrics, APM, Kubernetes events and entities, monitors, and monitor issues,
 queried with **gcQL** (groundcover Query Language) over groundcover's public,
 read-only **MCP** endpoint.
 
-This is the initial integration: configuration, verification, and three read-only
-tools (logs, traces, and the gcQL reference). More signals (metrics, APM,
-Kubernetes events/entities, monitors, monitor issues) and alert-source routing
-land in follow-up releases. v1 is read-only — no monitor creation, silencing, or
-other mutating actions.
+This integration covers configuration, verification, and the read-only tool surface
+listed below. Alert-source routing lands in a follow-up release. v1 is read-only —
+no monitor creation, silencing, or other mutating actions.
 
 ## Commands
 
@@ -80,6 +79,12 @@ when the account is ambiguous. Tokens are never printed.
 | `get_groundcover_query_reference` | The gcQL syntax reference — call once before writing queries |
 | `query_groundcover_logs` | Application errors, exceptions, and log events |
 | `query_groundcover_traces` | Slow/failing spans and request correlations |
+| `query_groundcover_events` | Kubernetes warning/lifecycle events (OOMKilled, CrashLoopBackOff) |
+| `query_groundcover_issues` | Active alerts and historical monitor firings |
+| `query_groundcover_apm` | Request rate, error rate, and latency aggregates (golden signals) |
+| `query_groundcover_entities` | Live Kubernetes object state (pods, deployments, nodes) |
+| `query_groundcover_monitors` | Monitor definitions and current health |
+| `query_groundcover_metrics` | Metric discovery + PromQL range/instant queries |
 
 ## Writing efficient gcQL
 
@@ -113,6 +118,18 @@ duration_seconds>0.5 workload:checkout
 
 # 5xx rate per workload (HTTP spans use status_code; status:error is universal)
 status_code>=500 | stats by (workload) count() as errors | sort by (errors desc) | limit 20
+
+# Kubernetes warning events (projected)
+type:Warning | fields _time, reason, namespace, message | limit 50
+
+# Live pods in a namespace (entities have no time window)
+kind:Pod namespace:production | fields name, status_phase, restart_count | limit 100
+
+# APM golden signals (note the required resource_type + direction filters)
+resource_type:http is_inbound:true source:ebpf
+  | stats by (workload) sum(total_counter) as requests, sum(error_counter) as errors,
+    quantile(0.95, latency_seconds_quantiles) as p95_seconds
+  | sort by (requests desc) | limit 20
 ```
 
 ## Troubleshooting
