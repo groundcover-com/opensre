@@ -3,6 +3,7 @@
 import html
 import re
 
+from platform.common.branding import apply_brand_casing
 from tools.investigation.reporting.context import ReportContext
 from tools.investigation.reporting.formatters.base import (
     format_html_link,
@@ -42,7 +43,7 @@ def _format_provenance_lines(ctx: ReportContext) -> list[str]:
     provenance = ctx.get("source_provenance") or {}
     lines: list[str] = []
     for source_name, entry in provenance.items():
-        label = entry.get("label") or source_name.title()
+        label = apply_brand_casing(entry.get("label") or source_name.title())
         summary = entry.get("summary") or ""
         if summary:
             lines.append(f"• {label}: {summary}")

@@ -23,6 +23,7 @@ __all__ = (
 ALERT_TEMPLATE_CHOICES: tuple[str, ...] = (
     "generic",
     "datadog",
+    "groundcover",
     "grafana",
     "honeycomb",
     "coralogix",
@@ -32,6 +33,7 @@ ALERT_TEMPLATE_CHOICES: tuple[str, ...] = (
 SAMPLE_ALERT_OPTIONS: tuple[tuple[str, str], ...] = (
     ("generic", "Generic - High error rate in payments ETL"),
     ("datadog", "Datadog - payments-etl error rate high"),
+    ("groundcover", "groundcover - checkout error rate high"),
     ("grafana", "Grafana - Pipeline failure rate high"),
     ("honeycomb", "Honeycomb - checkout-api latency regression"),
     ("coralogix", "Coralogix - payments worker errors"),

@@ -8,8 +8,11 @@ queried with **gcQL** (groundcover Query Language) over groundcover's public,
 read-only **MCP** endpoint.
 
 This integration covers configuration, verification, and the read-only tool surface
-listed below. Alert-source routing lands in a follow-up release. v1 is read-only —
-no monitor creation, silencing, or other mutating actions.
+listed below. `groundcover` is a first-class alert source: payloads that mention
+groundcover, gcQL, a monitor issue, or an `app.groundcover.com` URL resolve to
+`alert_source: groundcover`, which seeds the groundcover tools and prioritizes them
+during investigation. Try it with `opensre --print-template groundcover`. v1 is
+read-only — no monitor creation, silencing, or other mutating actions.
 
 ## Commands
 

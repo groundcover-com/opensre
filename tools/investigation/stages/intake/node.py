@@ -54,6 +54,7 @@ Extract these fields from the message text:
   - "datadog" for datadoghq.com or Datadog monitors
   - "honeycomb" for Honeycomb or api.honeycomb.io
   - "coralogix" for Coralogix or DataPrime
+  - "groundcover" for groundcover, groundcover.com, gcQL, a groundcover monitor issue, or an app.groundcover.com URL
   - "cloudwatch" for AWS CloudWatch alarms
   - "eks" for EKS, CrashLoopBackOff, OOMKilled, Kubernetes pods, or kube_namespace
   - "alertmanager" for Prometheus/Alertmanager-specific fields

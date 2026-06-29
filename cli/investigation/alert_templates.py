@@ -43,6 +43,29 @@ def build_alert_template(template_name: str) -> dict[str, Any]:
             },
         }
 
+    if template == "groundcover":
+        return {
+            "title": "[Firing] groundcover monitor: checkout error rate high",
+            "alert_name": "groundcover monitor: checkout error rate high",
+            "pipeline_name": "checkout",
+            "severity": "critical",
+            "alert_source": "groundcover",
+            "message": "groundcover monitor detected a high error rate for the checkout workload",
+            "monitor_name": "checkout-error-rate",
+            "commonLabels": {
+                "workload": "checkout",
+                "namespace": "production",
+                "severity": "critical",
+            },
+            "commonAnnotations": {
+                "summary": "checkout 5xx error rate exceeded threshold in production",
+                "query": "workload:checkout status:error | fields _time, workload, instance, content | limit 50",
+                "kube_namespace": "production",
+                "source_url": "https://app.groundcover.com/monitors",
+                "correlation_id": "replace-me",
+            },
+        }
+
     if template == "grafana":
         return {
             "title": "[FIRING:1] Pipeline failure rate high - payments_etl",
@@ -113,5 +136,5 @@ def build_alert_template(template_name: str) -> dict[str, Any]:
         }
 
     raise ValueError(
-        "Unknown alert template. Supported templates: generic, datadog, grafana, honeycomb, coralogix, splunk."
+        "Unknown alert template. Supported templates: generic, datadog, groundcover, grafana, honeycomb, coralogix, splunk."
     )
